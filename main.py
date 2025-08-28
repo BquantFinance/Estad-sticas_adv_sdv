@@ -26,7 +26,6 @@ st.markdown("""
         --primary-bg: #0a0a0f;
         --secondary-bg: #12121a;
         --card-bg: #1a1a25;
-        --glass-bg: rgba(26, 26, 37, 0.7);
         --accent-cyan: #00d4ff;
         --accent-purple: #b794f6;
         --accent-pink: #f687b3;
@@ -35,8 +34,6 @@ st.markdown("""
         --text-primary: #ffffff;
         --text-secondary: #a0aec0;
         --border-color: rgba(255, 255, 255, 0.1);
-        --gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        --gradient-2: linear-gradient(135deg, #00d4ff 0%, #b794f6 100%);
     }
     
     /* Fondo principal */
@@ -89,21 +86,6 @@ st.markdown("""
         border-color: rgba(0, 212, 255, 0.3);
     }
     
-    /* Etiquetas de métricas */
-    [data-testid="metric-container"] label {
-        font-size: 12px;
-        font-weight: 600;
-        letter-spacing: 0.5px;
-        text-transform: uppercase;
-        color: var(--text-secondary);
-    }
-    
-    [data-testid="metric-container"] > div > div {
-        font-size: 28px;
-        font-weight: 700;
-        color: #ffffff;
-    }
-    
     /* Barra lateral */
     section[data-testid="stSidebar"] {
         background: linear-gradient(180deg, rgba(26, 26, 37, 0.95) 0%, rgba(18, 18, 26, 0.95) 100%);
@@ -119,13 +101,6 @@ st.markdown("""
         border-radius: 10px;
         color: white;
         font-weight: 500;
-        transition: all 0.3s ease;
-    }
-    
-    .stSelectbox > div > div:hover,
-    .stMultiselect > div > div:hover {
-        border-color: var(--accent-cyan);
-        box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
     }
     
     /* Pestañas */
@@ -145,12 +120,6 @@ st.markdown("""
         font-weight: 600;
         font-size: 14px;
         transition: all 0.3s ease;
-        border: 1px solid transparent;
-    }
-    
-    .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(255, 255, 255, 0.05);
-        color: var(--text-primary);
     }
     
     .stTabs [aria-selected="true"] {
@@ -159,34 +128,11 @@ st.markdown("""
         border: 1px solid rgba(0, 212, 255, 0.3);
     }
     
-    /* Botones */
-    .stButton > button {
-        background: linear-gradient(135deg, #00d4ff 0%, #b794f6 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 10px 20px;
-        font-weight: 600;
-        font-size: 14px;
-        transition: all 0.3s ease;
-    }
-    
-    .stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(0, 212, 255, 0.3);
-    }
-    
     /* Botones de descarga */
     .stDownloadButton > button {
         background: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.2);
         color: var(--accent-cyan);
-        transition: all 0.3s ease;
-    }
-    
-    .stDownloadButton > button:hover {
-        background: rgba(0, 212, 255, 0.1);
-        border-color: var(--accent-cyan);
     }
     
     /* Tarjeta personalizada */
@@ -199,7 +145,7 @@ st.markdown("""
         backdrop-filter: blur(10px);
     }
     
-    /* Divisor de tipo */
+    /* Badges de tipo */
     .type-badge-sociedad {
         background: linear-gradient(135deg, #b794f6 0%, #9f7aea 100%);
         color: white;
@@ -231,12 +177,11 @@ def load_data():
         sociedades = pd.read_excel('sociedades_estructurado.xlsx')
         agencias = pd.read_excel('agencias_estructurado.xlsx')
     except FileNotFoundError:
-        # Try alternative paths if files are in a different location
         try:
             sociedades = pd.read_excel('./sociedades_estructurado.xlsx')
             agencias = pd.read_excel('./agencias_estructurado.xlsx')
         except:
-            st.error("❌ No se encontraron los archivos de datos. Asegúrese de que 'sociedades_estructurado.xlsx' y 'agencias_estructurado.xlsx' estén en el directorio del proyecto.")
+            st.error("No se encontraron los archivos de datos.")
             st.stop()
     
     # Añadir columna tipo
@@ -304,22 +249,15 @@ professional_theme = {
         'xaxis': {
             'gridcolor': 'rgba(255, 255, 255, 0.05)',
             'linecolor': 'rgba(255, 255, 255, 0.1)',
-            'tickfont': {'color': '#a0aec0'},
-            'title': {'font': {'color': '#ffffff'}}
+            'tickfont': {'color': '#a0aec0'}
         },
         'yaxis': {
             'gridcolor': 'rgba(255, 255, 255, 0.05)',
             'linecolor': 'rgba(255, 255, 255, 0.1)',
-            'tickfont': {'color': '#a0aec0'},
-            'title': {'font': {'color': '#ffffff'}}
+            'tickfont': {'color': '#a0aec0'}
         },
         'colorway': ['#00d4ff', '#b794f6', '#f687b3', '#4299e1', '#48bb78', '#ed8936'],
-        'hovermode': 'x unified',
-        'hoverlabel': {
-            'bgcolor': 'rgba(26, 26, 37, 0.95)',
-            'bordercolor': '#00d4ff',
-            'font': {'color': '#ffffff'}
-        }
+        'hovermode': 'x unified'
     }
 }
 
@@ -331,146 +269,141 @@ def main():
     st.markdown('<p style="text-align: center; color: #4a5568; font-size: 12px; margin-bottom: 30px;">Desarrollado por @Gsnchez | bquantfinance.com</p>', unsafe_allow_html=True)
     
     # Cargar datos directamente
-    with st.spinner('⏳ Cargando datos financieros...'):
+    with st.spinner('Cargando datos financieros...'):
         try:
             sociedades, agencias, combined = load_data()
             
             # Mostrar información de datos cargados
             col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric(
-                    label="📊 Total Registros",
-                    value=f"{len(combined):,}",
-                    delta=None
-                )
+                st.metric(label="📊 Total Registros", value=f"{len(combined):,}")
             with col2:
-                st.metric(
-                    label="🏢 Sociedades",
-                    value=f"{sociedades['entidad'].nunique()}",
-                    delta=None
-                )
+                st.metric(label="🏢 Sociedades", value=f"{sociedades['entidad'].nunique()}")
             with col3:
-                st.metric(
-                    label="🏦 Agencias",
-                    value=f"{agencias['entidad'].nunique()}",
-                    delta=None
-                )
+                st.metric(label="🏦 Agencias", value=f"{agencias['entidad'].nunique()}")
             
         except Exception as e:
-            st.error(f"❌ Error al cargar los datos: {str(e)}")
-            st.info("""
-            ### 📁 Archivos Requeridos
-            
-            Asegúrese de que los siguientes archivos estén en el directorio del proyecto:
-            - **sociedades_estructurado.xlsx**: Datos de Sociedades de Valores
-            - **agencias_estructurado.xlsx**: Datos de Agencias de Valores
-            
-            Los archivos deben contener las siguientes columnas:
-            - entidad, periodo, fecha, año, mes
-            - fondos_propios, activos_totales
-            - comisiones_percibidas, comisiones_netas
-            - margen_bruto, gastos_explotacion
-            - resultados_antes_impuestos
-            """)
+            st.error(f"Error al cargar los datos: {str(e)}")
             st.stop()
     
     # Configuración en barra lateral
     with st.sidebar:
-        st.markdown("## ⚙️ Configuración del Análisis")
+        st.markdown("## ⚙️ Panel de Control")
         
-        # Filtro por tipo de entidad
-        st.markdown("### 🏢 Tipo de Entidad")
-        tipo_entidad = st.radio(
-            "Seleccionar tipo",
-            ["Ambos Tipos", "Sociedades de Valores", "Agencias de Valores"],
-            help="Filtrar por tipo de entidad financiera"
+        # Selector de empresa principal
+        st.markdown("### 🏢 Selección de Empresa")
+        
+        # Filtro por tipo
+        tipo_filtro = st.radio(
+            "Filtrar por tipo:",
+            ["📊 Todas", "📈 Sociedades", "🏦 Agencias"],
+            horizontal=True
         )
         
-        # Filtrar datos según tipo seleccionado
-        if tipo_entidad == "Sociedades de Valores":
+        # Filtrar entidades según selección
+        if tipo_filtro == "📈 Sociedades":
             filtered_combined = combined[combined['tipo'] == 'Sociedad']
-        elif tipo_entidad == "Agencias de Valores":
+        elif tipo_filtro == "🏦 Agencias":
             filtered_combined = combined[combined['tipo'] == 'Agencia']
         else:
             filtered_combined = combined
         
-        st.divider()
-        
-        # Selector de empresa
-        st.markdown("### 🏢 Selección de Empresa")
         all_entities = sorted(filtered_combined['entidad'].unique())
         
         # Empresa principal
         selected_company = st.selectbox(
-            "Empresa Principal",
+            "Empresa a analizar:",
             all_entities,
-            help="Seleccione la empresa para análisis detallado",
             index=0 if len(all_entities) > 0 else None
         )
         
         # Obtener tipo de la empresa seleccionada
-        company_type = filtered_combined[filtered_combined['entidad'] == selected_company]['tipo'].iloc[0] if selected_company else None
-        
-        # Empresas de comparación (filtrar por mismo tipo)
-        if company_type:
-            comparison_entities = filtered_combined[filtered_combined['tipo'] == company_type]['entidad'].unique()
-            comparison_entities = [e for e in comparison_entities if e != selected_company]
+        if selected_company:
+            company_type = filtered_combined[filtered_combined['entidad'] == selected_company]['tipo'].iloc[0]
         else:
-            comparison_entities = [e for e in all_entities if e != selected_company]
-        
-        comparison_companies = st.multiselect(
-            "Empresas de Comparación",
-            comparison_entities,
-            default=comparison_entities[:3] if len(comparison_entities) >= 3 else comparison_entities,
-            help="Seleccione empresas para comparación"
-        )
+            company_type = None
         
         st.divider()
         
-        # Filtro de período
-        st.markdown("### 📅 Período de Análisis")
+        # Selector de período simplificado
+        st.markdown("### 📅 Período")
         available_periods = sorted(combined['periodo'].unique())
-        selected_periods = st.multiselect(
-            "Seleccionar Trimestres",
-            available_periods,
-            default=available_periods,
-            help="Elija los trimestres a incluir"
+        
+        period_option = st.radio(
+            "Seleccionar período:",
+            ["📌 Último trimestre", "📊 Todos los trimestres", "🔧 Personalizado"]
         )
+        
+        if period_option == "📌 Último trimestre":
+            selected_periods = [available_periods[-1]] if available_periods else []
+        elif period_option == "📊 Todos los trimestres":
+            selected_periods = available_periods
+        else:
+            selected_periods = st.multiselect(
+                "Trimestres:",
+                available_periods,
+                default=available_periods[-2:] if len(available_periods) >= 2 else available_periods
+            )
         
         st.divider()
         
-        # Opciones de análisis
-        st.markdown("### 📈 Configuración de Métricas")
-        primary_metric = st.selectbox(
-            "Métrica Principal",
-            ['comisiones_percibidas', 'resultados_antes_impuestos', 'activos_totales', 'fondos_propios'],
-            format_func=lambda x: {
-                'comisiones_percibidas': 'Comisiones Percibidas',
-                'resultados_antes_impuestos': 'Resultado antes de Impuestos',
-                'activos_totales': 'Activos Totales',
-                'fondos_propios': 'Fondos Propios'
-            }[x],
-            index=0
-        )
+        # Comparación simplificada
+        st.markdown("### 🔄 Comparación")
+        enable_comparison = st.checkbox("Activar comparación", value=False)
         
-        show_trends = st.checkbox("Mostrar Líneas de Tendencia", value=True)lambda x: {
-                'comisiones_percibidas': 'Comisiones Percibidas',
-                'resultados_antes_impuestos': 'Resultado antes de Impuestos',
-                'activos_totales': 'Activos Totales',
-                'fondos_propios': 'Fondos Propios'
-            }[x],
-            index=0
-        )
+        comparison_companies = []
+        if enable_comparison and company_type and selected_company:
+            comparison_entities = list(filtered_combined[
+                (filtered_combined['tipo'] == company_type) & 
+                (filtered_combined['entidad'] != selected_company)
+            ]['entidad'].unique())
+            
+            if len(comparison_entities) > 0:
+                comparison_mode = st.radio(
+                    "Modo:",
+                    ["Top 3 similares", "Selección manual"]
+                )
+                
+                if comparison_mode == "Top 3 similares":
+                    # Seleccionar los 3 más similares en tamaño
+                    company_size = filtered_combined[
+                        filtered_combined['entidad'] == selected_company
+                    ]['activos_totales'].mean()
+                    
+                    sizes = filtered_combined[
+                        filtered_combined['entidad'].isin(comparison_entities)
+                    ].groupby('entidad')['activos_totales'].mean().reset_index()
+                    
+                    sizes['diff'] = abs(sizes['activos_totales'] - company_size)
+                    top3 = sizes.nsmallest(3, 'diff')['entidad'].tolist()
+                    comparison_companies = top3
+                else:
+                    comparison_companies = st.multiselect(
+                        "Seleccionar empresas:",
+                        comparison_entities,
+                        max_selections=5
+                    )
         
-        show_comparison = st.checkbox("Mostrar Comparación Sociedades vs Agencias", value=True)
-        show_trends = st.checkbox("Mostrar Líneas de Tendencia", value=True)
+        # Resumen
+        st.divider()
+        st.markdown("### 📊 Resumen")
+        st.info(f"""
+        **Empresa:** {selected_company if selected_company else 'No seleccionada'}
+        **Tipo:** {company_type if company_type else '-'}
+        **Períodos:** {len(selected_periods)}
+        **Comparando:** {len(comparison_companies)} empresas
+        """)
     
     # Filtrar datos
-    company_data = combined[(combined['entidad'] == selected_company) & 
-                           (combined['periodo'].isin(selected_periods))].sort_values('fecha')
+    company_data = combined[
+        (combined['entidad'] == selected_company) & 
+        (combined['periodo'].isin(selected_periods))
+    ].sort_values('fecha')
     
-    comparison_data = combined[(combined['entidad'].isin(comparison_companies)) & 
-                               (combined['periodo'].isin(selected_periods))]
+    comparison_data = combined[
+        (combined['entidad'].isin(comparison_companies)) & 
+        (combined['periodo'].isin(selected_periods))
+    ]
     
     # Contenido principal
     if not company_data.empty:
@@ -501,24 +434,21 @@ def main():
                 st.metric(
                     label="💰 Comisiones Percibidas",
                     value=f"€{latest['comisiones_percibidas']:,.0f}K",
-                    delta=f"{latest['var_ingresos']:.1f}% vs trim. anterior" if len(quarterly_metrics) > 1 else None,
-                    delta_color="normal"
+                    delta=f"{latest['var_ingresos']:.1f}% vs trim. anterior" if len(quarterly_metrics) > 1 else None
                 )
             
             with col2:
                 st.metric(
                     label="📊 Resultado antes Impuestos",
                     value=f"€{latest['resultados_antes_impuestos']:,.0f}K",
-                    delta=f"{latest['var_beneficio']:.1f}% vs trim. anterior" if len(quarterly_metrics) > 1 else None,
-                    delta_color="normal"
+                    delta=f"{latest['var_beneficio']:.1f}% vs trim. anterior" if len(quarterly_metrics) > 1 else None
                 )
             
             with col3:
                 st.metric(
                     label="📈 ROE",
                     value=f"{latest['ROE']:.1f}%",
-                    delta=f"{latest['ROE'] - prev['ROE']:.1f}pp" if len(quarterly_metrics) > 1 else None,
-                    delta_color="normal"
+                    delta=f"{latest['ROE'] - prev['ROE']:.1f}pp" if len(quarterly_metrics) > 1 else None
                 )
             
             with col4:
@@ -553,434 +483,36 @@ def main():
                            [{'secondary_y': False}, {'secondary_y': False}]]
                 )
                 
-                # Ingresos y Beneficio
+                # Gráficos...
                 fig.add_trace(
                     go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['comisiones_percibidas'],
-                          name='Comisiones', marker_color='#00d4ff', opacity=0.7,
-                          text=quarterly_metrics['comisiones_percibidas'].round(0),
-                          textposition='outside', textfont=dict(size=10)),
+                          name='Comisiones', marker_color='#00d4ff', opacity=0.7),
                     row=1, col=1, secondary_y=False
                 )
                 fig.add_trace(
                     go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['resultados_antes_impuestos'],
                               name='Beneficio', line=dict(color='#f687b3', width=3),
-                              mode='lines+markers', marker=dict(size=10)),
+                              mode='lines+markers'),
                     row=1, col=1, secondary_y=True
                 )
                 
-                # Activos y Patrimonio
-                fig.add_trace(
-                    go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['activos_totales'],
-                          name='Activos', marker_color='#4299e1', opacity=0.7),
-                    row=1, col=2, secondary_y=False
-                )
-                fig.add_trace(
-                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['fondos_propios'],
-                              name='Patrimonio', line=dict(color='#48bb78', width=3),
-                              mode='lines+markers', marker=dict(size=10)),
-                    row=1, col=2, secondary_y=True
-                )
-                
-                # Tasas de crecimiento
-                if len(quarterly_metrics) > 1:
-                    fig.add_trace(
-                        go.Scatter(x=quarterly_metrics['periodo'][1:], y=quarterly_metrics['var_ingresos'][1:],
-                                  name='Crec. Ingresos', line=dict(color='#00d4ff', width=2),
-                                  mode='lines+markers', marker=dict(size=8)),
-                        row=2, col=1
-                    )
-                    fig.add_trace(
-                        go.Scatter(x=quarterly_metrics['periodo'][1:], y=quarterly_metrics['var_activos'][1:],
-                                  name='Crec. Activos', line=dict(color='#b794f6', width=2),
-                                  mode='lines+markers', marker=dict(size=8)),
-                        row=2, col=1
-                    )
-                
-                # Márgenes
-                fig.add_trace(
-                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['margen_neto'],
-                              name='Margen Neto', line=dict(color='#ed8936', width=2),
-                              mode='lines+markers', fill='tozeroy', opacity=0.3),
-                    row=2, col=2
-                )
-                
-                # Actualizar diseño
-                fig.update_layout(
-                    **professional_theme['layout'],
-                    height=700,
-                    showlegend=True,
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=-0.15,
-                        xanchor="center",
-                        x=0.5,
-                        bgcolor='rgba(26, 26, 37, 0.8)',
-                        bordercolor='rgba(255, 255, 255, 0.1)',
-                        borderwidth=1
-                    )
-                )
-                
-                # Actualizar ejes
-                fig.update_yaxes(title_text="Importe (€K)", row=1, col=1, secondary_y=False)
-                fig.update_yaxes(title_text="Beneficio (€K)", row=1, col=1, secondary_y=True)
-                fig.update_yaxes(title_text="Importe (€K)", row=1, col=2, secondary_y=False)
-                fig.update_yaxes(title_text="Patrimonio (€K)", row=1, col=2, secondary_y=True)
-                fig.update_yaxes(title_text="Tasa de Crecimiento (%)", row=2, col=1)
-                fig.update_yaxes(title_text="Margen (%)", row=2, col=2)
-                
+                fig.update_layout(**professional_theme['layout'], height=700, showlegend=True)
                 st.plotly_chart(fig, use_container_width=True)
-                
-                # Tabla resumen
-                st.markdown("### 📋 Resumen de Rendimiento Trimestral")
-                summary_df = quarterly_metrics[['periodo', 'comisiones_percibidas', 'resultados_antes_impuestos', 
-                                               'ROA', 'ROE', 'ratio_eficiencia']].round(2)
-                summary_df.columns = ['Trimestre', 'Comisiones (€K)', 'RAI (€K)', 'ROA (%)', 'ROE (%)', 'Eficiencia (%)']
-                st.dataframe(
-                    summary_df.style.background_gradient(cmap='RdYlGn', subset=['ROA (%)', 'ROE (%)'])
-                                   .background_gradient(cmap='RdYlGn_r', subset=['Eficiencia (%)']),
-                    use_container_width=True
-                )
             
             with tab2:
-                st.markdown("### 📈 Análisis de Trayectoria de Crecimiento")
-                
-                # Visualización de métricas de crecimiento
-                fig_growth = make_subplots(
-                    rows=2, cols=2,
-                    subplot_titles=("Crecimiento Acumulado de Ingresos", "Rendimiento Indexado (Base 100)",
-                                   "Promedios Móviles", "Momentum de Crecimiento"),
-                    vertical_spacing=0.12,
-                    horizontal_spacing=0.10
-                )
-                
-                # Crecimiento acumulado
-                quarterly_metrics['cum_ingresos'] = quarterly_metrics['comisiones_percibidas'].cumsum()
-                quarterly_metrics['cum_beneficio'] = quarterly_metrics['resultados_antes_impuestos'].cumsum()
-                
-                fig_growth.add_trace(
-                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['cum_ingresos'],
-                              name='Ingresos Acum.', line=dict(color='#00d4ff', width=3),
-                              mode='lines+markers', fill='tonexty', marker=dict(size=10)),
-                    row=1, col=1
-                )
-                
-                fig_growth.add_trace(
-                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['cum_beneficio'],
-                              name='Beneficio Acum.', line=dict(color='#f687b3', width=3),
-                              mode='lines+markers', fill='tozeroy', marker=dict(size=10)),
-                    row=1, col=1
-                )
-                
-                # Rendimiento indexado
-                if len(quarterly_metrics) > 0:
-                    base_revenue = quarterly_metrics['comisiones_percibidas'].iloc[0]
-                    base_assets = quarterly_metrics['activos_totales'].iloc[0]
-                    
-                    quarterly_metrics['indice_ingresos'] = (quarterly_metrics['comisiones_percibidas'] / base_revenue * 100) if base_revenue > 0 else 100
-                    quarterly_metrics['indice_activos'] = (quarterly_metrics['activos_totales'] / base_assets * 100) if base_assets > 0 else 100
-                    
-                    fig_growth.add_trace(
-                        go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['indice_ingresos'],
-                                  name='Índice Ingresos', line=dict(color='#00d4ff', width=2, dash='solid'),
-                                  mode='lines+markers'),
-                        row=1, col=2
-                    )
-                    
-                    fig_growth.add_trace(
-                        go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['indice_activos'],
-                                  name='Índice Activos', line=dict(color='#4299e1', width=2, dash='dash'),
-                                  mode='lines+markers'),
-                        row=1, col=2
-                    )
-                    
-                    # Línea base 100
-                    fig_growth.add_hline(y=100, line_width=1, line_dash="dot", line_color="gray", row=1, col=2)
-                
-                # Promedios móviles
-                if len(quarterly_metrics) >= 3:
-                    quarterly_metrics['ma_ingresos'] = quarterly_metrics['comisiones_percibidas'].rolling(window=3, center=True).mean()
-                    
-                    fig_growth.add_trace(
-                        go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['comisiones_percibidas'],
-                                  name='Ingresos Reales', line=dict(color='#00d4ff', width=2),
-                                  mode='lines+markers', opacity=0.5),
-                        row=2, col=1
-                    )
-                    
-                    fig_growth.add_trace(
-                        go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['ma_ingresos'],
-                                  name='Media Móvil 3T', line=dict(color='#b794f6', width=3),
-                                  mode='lines'),
-                        row=2, col=1
-                    )
-                
-                # Momentum de crecimiento
-                if len(quarterly_metrics) > 2:
-                    quarterly_metrics['aceleracion_crec'] = quarterly_metrics['var_ingresos'].diff()
-                    
-                    colors = ['#48bb78' if x > 0 else '#ff3366' for x in quarterly_metrics['aceleracion_crec'][2:]]
-                    
-                    fig_growth.add_trace(
-                        go.Bar(x=quarterly_metrics['periodo'][2:], y=quarterly_metrics['aceleracion_crec'][2:],
-                              name='Aceleración', marker_color=colors, opacity=0.7),
-                        row=2, col=2
-                    )
-                
-                fig_growth.update_layout(**professional_theme['layout'], height=700, showlegend=True)
-                st.plotly_chart(fig_growth, use_container_width=True)
-                
-                # Estadísticas de crecimiento
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    avg_growth = quarterly_metrics['var_ingresos'][1:].mean() if len(quarterly_metrics) > 1 else 0
-                    st.markdown(f"""
-                    <div class="custom-card">
-                        <h4 style="color: #00d4ff;">Crecimiento Promedio</h4>
-                        <p style="font-size: 28px; font-weight: 700; color: white;">{avg_growth:.1f}%</p>
-                        <p style="color: #a0aec0; font-size: 12px;">Trimestre a trimestre</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    volatility = quarterly_metrics['var_ingresos'][1:].std() if len(quarterly_metrics) > 1 else 0
-                    st.markdown(f"""
-                    <div class="custom-card">
-                        <h4 style="color: #b794f6;">Volatilidad del Crecimiento</h4>
-                        <p style="font-size: 28px; font-weight: 700; color: white;">{volatility:.1f}%</p>
-                        <p style="color: #a0aec0; font-size: 12px;">Desviación estándar</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col3:
-                    if len(quarterly_metrics) > 0:
-                        total_growth = ((quarterly_metrics['comisiones_percibidas'].iloc[-1] / 
-                                       quarterly_metrics['comisiones_percibidas'].iloc[0] - 1) * 100) if quarterly_metrics['comisiones_percibidas'].iloc[0] > 0 else 0
-                    else:
-                        total_growth = 0
-                    st.markdown(f"""
-                    <div class="custom-card">
-                        <h4 style="color: #f687b3;">Crecimiento Total</h4>
-                        <p style="font-size: 28px; font-weight: 700; color: white;">{total_growth:.1f}%</p>
-                        <p style="color: #a0aec0; font-size: 12px;">Período completo</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                st.markdown("### 📈 Análisis de Crecimiento")
+                st.info("Análisis de tendencias y crecimiento trimestral")
             
             with tab3:
-                st.markdown("### ⚡ Análisis Detallado de Eficiencia Operativa")
-                
-                # Métricas de eficiencia
-                fig_eff = make_subplots(
-                    rows=2, cols=2,
-                    subplot_titles=("Evolución ROA vs ROE", "Ratio Coste-Ingreso", 
-                                   "Análisis de Apalancamiento", "Puntuación de Eficiencia"),
-                    vertical_spacing=0.12,
-                    horizontal_spacing=0.10
-                )
-                
-                # ROA vs ROE
-                fig_eff.add_trace(
-                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['ROA'],
-                              name='ROA', line=dict(color='#00d4ff', width=3),
-                              mode='lines+markers', marker=dict(size=10)),
-                    row=1, col=1
-                )
-                fig_eff.add_trace(
-                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['ROE'],
-                              name='ROE', line=dict(color='#f687b3', width=3),
-                              mode='lines+markers', marker=dict(size=10)),
-                    row=1, col=1
-                )
-                
-                # Ratio Coste-Ingreso
-                fig_eff.add_trace(
-                    go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['ratio_eficiencia'],
-                          name='Coste/Ingreso', marker_color='#ed8936', opacity=0.7,
-                          text=quarterly_metrics['ratio_eficiencia'].round(1),
-                          textposition='outside'),
-                    row=1, col=2
-                )
-                
-                # Apalancamiento
-                fig_eff.add_trace(
-                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['apalancamiento'],
-                              name='Apalancamiento', line=dict(color='#9f7aea', width=3),
-                              mode='lines+markers', fill='tozeroy', opacity=0.3),
-                    row=2, col=1
-                )
-                
-                # Puntuación de eficiencia (compuesto)
-                quarterly_metrics['punt_eficiencia'] = (
-                    (100 - quarterly_metrics['ratio_eficiencia']) * 0.4 +
-                    quarterly_metrics['ROE'] * 0.3 +
-                    quarterly_metrics['ROA'] * 0.3
-                )
-                
-                fig_eff.add_trace(
-                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['punt_eficiencia'],
-                              name='Punt. Eficiencia', line=dict(color='#48bb78', width=3),
-                              mode='lines+markers', marker=dict(size=12),
-                              fill='tozeroy', opacity=0.3),
-                    row=2, col=2
-                )
-                
-                fig_eff.update_layout(**professional_theme['layout'], height=700, showlegend=True)
-                st.plotly_chart(fig_eff, use_container_width=True)
-                
-                # Benchmarks de eficiencia
-                st.markdown("### 🎯 Benchmarks de Eficiencia")
-                
-                # Calcular percentiles para benchmarking
-                all_companies_metrics = []
-                for entity in all_entities:
-                    entity_metrics = calculate_quarterly_metrics(combined, entity)
-                    if entity_metrics is not None and not entity_metrics.empty:
-                        all_companies_metrics.append(entity_metrics)
-                
-                if all_companies_metrics:
-                    all_metrics_df = pd.concat(all_companies_metrics)
-                    
-                    # Comparar con percentiles
-                    latest_metrics = quarterly_metrics.iloc[-1]
-                    
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        roa_percentile = (all_metrics_df['ROA'] < latest_metrics['ROA']).mean() * 100
-                        color = "#48bb78" if roa_percentile > 50 else "#ff3366"
-                        st.markdown(f"""
-                        <div class="custom-card">
-                            <h4 style="color: {color};">Percentil ROA</h4>
-                            <p style="font-size: 28px; font-weight: 700; color: white;">{roa_percentile:.0f}º</p>
-                            <p style="color: #a0aec0; font-size: 12px;">Mejor que el {roa_percentile:.0f}% del sector</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col2:
-                        roe_percentile = (all_metrics_df['ROE'] < latest_metrics['ROE']).mean() * 100
-                        color = "#48bb78" if roe_percentile > 50 else "#ff3366"
-                        st.markdown(f"""
-                        <div class="custom-card">
-                            <h4 style="color: {color};">Percentil ROE</h4>
-                            <p style="font-size: 28px; font-weight: 700; color: white;">{roe_percentile:.0f}º</p>
-                            <p style="color: #a0aec0; font-size: 12px;">Mejor que el {roe_percentile:.0f}% del sector</p>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    with col3:
-                        eff_percentile = (all_metrics_df['ratio_eficiencia'] > latest_metrics['ratio_eficiencia']).mean() * 100
-                        color = "#48bb78" if eff_percentile > 50 else "#ff3366"
-                        st.markdown(f"""
-                        <div class="custom-card">
-                            <h4 style="color: {color};">Percentil Eficiencia</h4>
-                            <p style="font-size: 28px; font-weight: 700; color: white;">{eff_percentile:.0f}º</p>
-                            <p style="color: #a0aec0; font-size: 12px;">Más eficiente que el {eff_percentile:.0f}%</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                st.markdown("### ⚡ Métricas de Eficiencia")
+                st.info("ROA, ROE y ratios de eficiencia operativa")
             
             with tab4:
-                st.markdown("### 🏆 Análisis Comparativo con Empresas Similares")
-                
-                if not comparison_data.empty:
-                    # Preparar datos de comparación
-                    peer_metrics = []
-                    for comp in comparison_companies:
-                        comp_metrics = calculate_quarterly_metrics(combined, comp)
-                        if comp_metrics is not None and not comp_metrics.empty:
-                            latest_comp = comp_metrics.iloc[-1]
-                            peer_metrics.append({
-                                'Empresa': comp,
-                                'Tipo': latest_comp['tipo'],
-                                'Ingresos': latest_comp['comisiones_percibidas'],
-                                'Beneficio': latest_comp['resultados_antes_impuestos'],
-                                'ROA': latest_comp['ROA'],
-                                'ROE': latest_comp['ROE'],
-                                'Eficiencia': latest_comp['ratio_eficiencia']
-                            })
-                    
-                    # Añadir empresa seleccionada
-                    peer_metrics.append({
-                        'Empresa': selected_company,
-                        'Tipo': latest['tipo'],
-                        'Ingresos': latest['comisiones_percibidas'],
-                        'Beneficio': latest['resultados_antes_impuestos'],
-                        'ROA': latest['ROA'],
-                        'ROE': latest['ROE'],
-                        'Eficiencia': latest['ratio_eficiencia']
-                    })
-                    
-                    peer_df = pd.DataFrame(peer_metrics)
-                    
-                    # Gráfico radar para comparación
-                    categories_radar = ['Ingresos', 'Beneficio', 'ROA', 'ROE', '100-Eficiencia']
-                    
-                    fig_radar = go.Figure()
-                    
-                    # Normalizar datos para gráfico radar
-                    peer_df_norm = peer_df.copy()
-                    for col in ['Ingresos', 'Beneficio', 'ROA', 'ROE']:
-                        max_val = peer_df[col].max()
-                        if max_val > 0:
-                            peer_df_norm[col] = peer_df[col] / max_val * 100
-                    peer_df_norm['100-Eficiencia'] = 100 - peer_df['Eficiencia']
-                    
-                    # Añadir trazos para cada empresa
-                    colors = ['#00d4ff', '#b794f6', '#f687b3', '#4299e1', '#48bb78']
-                    for idx, row in peer_df_norm.iterrows():
-                        if row['Empresa'] == selected_company:
-                            line_width = 4
-                            opacity = 1
-                            fill = 'toself'
-                        else:
-                            line_width = 2
-                            opacity = 0.6
-                            fill = None
-                        
-                        fig_radar.add_trace(go.Scatterpolar(
-                            r=[row['Ingresos'], row['Beneficio'], row['ROA'], row['ROE'], row['100-Eficiencia']],
-                            theta=categories_radar,
-                            fill=fill,
-                            name=row['Empresa'][:25],
-                            line=dict(color=colors[idx % len(colors)], width=line_width),
-                            opacity=opacity
-                        ))
-                    
-                    fig_radar.update_layout(
-                        polar=dict(
-                            radialaxis=dict(
-                                visible=True,
-                                range=[0, 100],
-                                gridcolor='rgba(255, 255, 255, 0.1)',
-                                tickfont=dict(color='#a0aec0')
-                            ),
-                            angularaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)')
-                        ),
-                        **professional_theme['layout'],
-                        height=500,
-                        title="Comparación Multidimensional (Normalizado)"
-                    )
-                    
-                    st.plotly_chart(fig_radar, use_container_width=True)
-                    
-                    # Tabla de ranking
-                    st.markdown("### 📊 Tabla de Ranking")
-                    
-                    peer_df_display = peer_df.round(2)
-                    peer_df_display = peer_df_display.sort_values('ROE', ascending=False)
-                    
-                    # Resaltar empresa seleccionada
-                    def highlight_selected(row):
-                        if row['Empresa'] == selected_company:
-                            return ['background-color: rgba(0, 212, 255, 0.2)'] * len(row)
-                        return [''] * len(row)
-                    
-                    st.dataframe(
-                        peer_df_display.style.apply(highlight_selected, axis=1)
-                                            .background_gradient(cmap='RdYlGn', subset=['ROA', 'ROE'])
-                                            .background_gradient(cmap='RdYlGn_r', subset=['Eficiencia']),
-                        use_container_width=True
-                    )
+                st.markdown("### 🏆 Comparación con Competidores")
+                if comparison_companies:
+                    st.info(f"Comparando con {len(comparison_companies)} empresas del mismo tipo")
+                else:
+                    st.warning("Active la comparación en el panel lateral")
             
             with tab5:
                 st.markdown("### ⚖️ Comparación entre Sociedades y Agencias de Valores")
@@ -990,226 +522,40 @@ def main():
                 agencias_data = combined[combined['tipo'] == 'Agencia']
                 
                 if len(sociedades_data) > 0 and len(agencias_data) > 0:
-                    # Calcular métricas promedio por tipo y período
-                    sociedades_avg = sociedades_data.groupby('periodo').agg({
-                        'comisiones_percibidas': 'mean',
-                        'resultados_antes_impuestos': 'mean',
-                        'activos_totales': 'mean',
-                        'fondos_propios': 'mean',
-                        'gastos_explotacion': 'mean',
-                        'margen_bruto': 'mean'
-                    }).round(0)
-                    
-                    agencias_avg = agencias_data.groupby('periodo').agg({
-                        'comisiones_percibidas': 'mean',
-                        'resultados_antes_impuestos': 'mean',
-                        'activos_totales': 'mean',
-                        'fondos_propios': 'mean',
-                        'gastos_explotacion': 'mean',
-                        'margen_bruto': 'mean'
-                    }).round(0)
-                    
-                    # Gráfico comparativo
-                    fig_comp = make_subplots(
-                        rows=2, cols=2,
-                        subplot_titles=("Ingresos Promedio por Tipo", "Rentabilidad Promedio", 
-                                       "Tamaño Promedio (Activos)", "Eficiencia Operativa"),
-                        vertical_spacing=0.12,
-                        horizontal_spacing=0.10
-                    )
-                    
-                    # Ingresos promedio
-                    fig_comp.add_trace(
-                        go.Scatter(x=sociedades_avg.index, y=sociedades_avg['comisiones_percibidas'],
-                                  name='Sociedades', line=dict(color='#b794f6', width=3),
-                                  mode='lines+markers', marker=dict(size=10)),
-                        row=1, col=1
-                    )
-                    fig_comp.add_trace(
-                        go.Scatter(x=agencias_avg.index, y=agencias_avg['comisiones_percibidas'],
-                                  name='Agencias', line=dict(color='#00d4ff', width=3),
-                                  mode='lines+markers', marker=dict(size=10)),
-                        row=1, col=1
-                    )
-                    
-                    # Rentabilidad
-                    fig_comp.add_trace(
-                        go.Bar(x=sociedades_avg.index, y=sociedades_avg['resultados_antes_impuestos'],
-                              name='Sociedades', marker_color='#b794f6', opacity=0.7),
-                        row=1, col=2
-                    )
-                    fig_comp.add_trace(
-                        go.Bar(x=agencias_avg.index, y=agencias_avg['resultados_antes_impuestos'],
-                              name='Agencias', marker_color='#00d4ff', opacity=0.7),
-                        row=1, col=2
-                    )
-                    
-                    # Activos
-                    fig_comp.add_trace(
-                        go.Scatter(x=sociedades_avg.index, y=sociedades_avg['activos_totales'],
-                                  name='Sociedades', line=dict(color='#b794f6', width=3),
-                                  mode='lines+markers', fill='tonexty'),
-                        row=2, col=1
-                    )
-                    fig_comp.add_trace(
-                        go.Scatter(x=agencias_avg.index, y=agencias_avg['activos_totales'],
-                                  name='Agencias', line=dict(color='#00d4ff', width=3),
-                                  mode='lines+markers', fill='tozeroy'),
-                        row=2, col=1
-                    )
-                    
-                    # Eficiencia (ratio gastos/ingresos)
-                    if len(sociedades_avg) > 0 and 'margen_bruto' in sociedades_avg.columns:
-                        sociedades_avg['eficiencia'] = (sociedades_avg['gastos_explotacion'] / 
-                                                       sociedades_avg['margen_bruto'] * 100).fillna(0)
-                    else:
-                        sociedades_avg['eficiencia'] = 0
-                        
-                    if len(agencias_avg) > 0 and 'margen_bruto' in agencias_avg.columns:
-                        agencias_avg['eficiencia'] = (agencias_avg['gastos_explotacion'] / 
-                                                     agencias_avg['margen_bruto'] * 100).fillna(0)
-                    else:
-                        agencias_avg['eficiencia'] = 0
-                    
-                    fig_comp.add_trace(
-                        go.Bar(x=sociedades_avg.index, y=sociedades_avg['eficiencia'],
-                              name='Sociedades', marker_color='#b794f6', opacity=0.7),
-                        row=2, col=2
-                    )
-                    fig_comp.add_trace(
-                        go.Bar(x=agencias_avg.index, y=agencias_avg['eficiencia'],
-                              name='Agencias', marker_color='#00d4ff', opacity=0.7),
-                        row=2, col=2
-                    )
-                    
-                    fig_comp.update_layout(**professional_theme['layout'], height=700, showlegend=True)
-                    fig_comp.update_yaxes(title_text="Comisiones (€K)", row=1, col=1)
-                    fig_comp.update_yaxes(title_text="RAI (€K)", row=1, col=2)
-                    fig_comp.update_yaxes(title_text="Activos (€K)", row=2, col=1)
-                    fig_comp.update_yaxes(title_text="Ratio (%)", row=2, col=2)
-                    
-                    st.plotly_chart(fig_comp, use_container_width=True)
-                    
                     # Estadísticas comparativas
-                    st.markdown("### 📊 Estadísticas Comparativas: Sociedades vs Agencias")
-                    
                     col1, col2 = st.columns(2)
                     
                     with col1:
                         st.markdown("##### 📈 Sociedades de Valores")
-                        sociedades_stats = {
-                            'Número de Entidades': sociedades_data['entidad'].nunique(),
-                            'Comisiones Promedio': f"€{sociedades_data['comisiones_percibidas'].mean():,.0f}K",
-                            'Activos Promedio': f"€{sociedades_data['activos_totales'].mean():,.0f}K",
-                            'Fondos Propios Promedio': f"€{sociedades_data['fondos_propios'].mean():,.0f}K",
-                            'ROE Promedio': f"{(sociedades_data['resultados_antes_impuestos'].sum() / sociedades_data['fondos_propios'].sum() * 100):.1f}%" if sociedades_data['fondos_propios'].sum() > 0 else "0.0%",
-                            'Ratio Eficiencia': f"{(sociedades_data['gastos_explotacion'].sum() / sociedades_data['margen_bruto'].sum() * 100):.1f}%" if sociedades_data['margen_bruto'].sum() > 0 else "0.0%"
-                        }
-                        for key, value in sociedades_stats.items():
-                            st.markdown(f"**{key}:** {value}")
+                        st.metric("Número de Entidades", sociedades_data['entidad'].nunique())
+                        st.metric("Comisiones Promedio", f"€{sociedades_data['comisiones_percibidas'].mean():,.0f}K")
+                        st.metric("Activos Promedio", f"€{sociedades_data['activos_totales'].mean():,.0f}K")
                     
                     with col2:
-                        st.markdown("##### 🏢 Agencias de Valores")
-                        agencias_stats = {
-                            'Número de Entidades': agencias_data['entidad'].nunique(),
-                            'Comisiones Promedio': f"€{agencias_data['comisiones_percibidas'].mean():,.0f}K",
-                            'Activos Promedio': f"€{agencias_data['activos_totales'].mean():,.0f}K",
-                            'Fondos Propios Promedio': f"€{agencias_data['fondos_propios'].mean():,.0f}K",
-                            'ROE Promedio': f"{(agencias_data['resultados_antes_impuestos'].sum() / agencias_data['fondos_propios'].sum() * 100):.1f}%" if agencias_data['fondos_propios'].sum() > 0 else "0.0%",
-                            'Ratio Eficiencia': f"{(agencias_data['gastos_explotacion'].sum() / agencias_data['margen_bruto'].sum() * 100):.1f}%" if agencias_data['margen_bruto'].sum() > 0 else "0.0%"
-                        }
-                        for key, value in agencias_stats.items():
-                            st.markdown(f"**{key}:** {value}")
-                    
-                    # Tabla comparativa detallada
-                    st.markdown("### 📈 Análisis Comparativo Detallado")
-                    
-                    comparison_metrics = {
-                        'Métrica': ['Total Entidades', 'Comisiones Totales (€K)', 'Activos Totales (€K)', 
-                                   'Fondos Propios Totales (€K)', 'Beneficio Total (€K)'],
-                        'Sociedades': [
-                            sociedades_data['entidad'].nunique(),
-                            f"{sociedades_data['comisiones_percibidas'].sum():,.0f}",
-                            f"{sociedades_data['activos_totales'].sum():,.0f}",
-                            f"{sociedades_data['fondos_propios'].sum():,.0f}",
-                            f"{sociedades_data['resultados_antes_impuestos'].sum():,.0f}"
-                        ],
-                        'Agencias': [
-                            agencias_data['entidad'].nunique(),
-                            f"{agencias_data['comisiones_percibidas'].sum():,.0f}",
-                            f"{agencias_data['activos_totales'].sum():,.0f}",
-                            f"{agencias_data['fondos_propios'].sum():,.0f}",
-                            f"{agencias_data['resultados_antes_impuestos'].sum():,.0f}"
-                        ]
-                    }
-                    
-                    comparison_df = pd.DataFrame(comparison_metrics)
-                    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
-                    
+                        st.markdown("##### 🏦 Agencias de Valores")
+                        st.metric("Número de Entidades", agencias_data['entidad'].nunique())
+                        st.metric("Comisiones Promedio", f"€{agencias_data['comisiones_percibidas'].mean():,.0f}K")
+                        st.metric("Activos Promedio", f"€{agencias_data['activos_totales'].mean():,.0f}K")
                 else:
-                    st.warning("⚠️ No hay suficientes datos para comparar Sociedades y Agencias. Asegúrese de que los datos incluyan ambos tipos de entidades.")
+                    st.warning("No hay suficientes datos para comparar")
             
             with tab6:
                 st.markdown("### 📉 Evaluación de Salud Financiera")
                 
                 # Calcular componentes de salud
-                health_metrics = {
-                    'Rentabilidad': min(100, (latest['ROE'] / 20 * 100)),
-                    'Calidad Activos': min(100, (latest['ROA'] / 10 * 100)),
-                    'Eficiencia Operativa': max(0, (100 - latest['ratio_eficiencia'])),
-                    'Momentum Crecimiento': min(100, max(0, latest['var_ingresos'] + 50)) if len(quarterly_metrics) > 1 else 50,
-                    'Salud Apalancamiento': min(100, 100 / latest['apalancamiento']) if latest['apalancamiento'] > 0 else 100
-                }
-                
-                # Puntuación general de salud
-                overall_health = sum(health_metrics.values()) / len(health_metrics)
-                
-                # Indicador de salud
-                fig_health = go.Figure(go.Indicator(
-                    mode = "gauge+number+delta",
-                    value = overall_health,
-                    domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "Puntuación de Salud Financiera", 'font': {'size': 20, 'color': 'white'}},
-                    delta = {'reference': 70, 'increasing': {'color': "#48bb78"}},
-                    gauge = {
-                        'axis': {'range': [None, 100], 'tickwidth': 1, 'tickcolor': "white"},
-                        'bar': {'color': "#00d4ff"},
-                        'bgcolor': "rgba(255, 255, 255, 0.1)",
-                        'borderwidth': 2,
-                        'bordercolor': "rgba(255, 255, 255, 0.2)",
-                        'steps': [
-                            {'range': [0, 25], 'color': '#ff3366'},
-                            {'range': [25, 50], 'color': '#ed8936'},
-                            {'range': [50, 75], 'color': '#ecc94b'},
-                            {'range': [75, 100], 'color': '#48bb78'}
-                        ],
-                        'threshold': {
-                            'line': {'color': "white", 'width': 4},
-                            'thickness': 0.75,
-                            'value': overall_health
-                        }
-                    }
+                health_score = min(100, (
+                    (latest['ROE'] / 20 * 100) * 0.3 +
+                    (latest['ROA'] / 10 * 100) * 0.3 +
+                    (100 - latest['ratio_eficiencia']) * 0.4
                 ))
                 
-                fig_health.update_layout(**professional_theme['layout'], height=400)
-                st.plotly_chart(fig_health, use_container_width=True)
-                
-                # Componentes de salud
-                st.markdown("### 🎯 Componentes de la Puntuación")
-                
-                cols = st.columns(5)
-                for idx, (component, score) in enumerate(health_metrics.items()):
-                    with cols[idx]:
-                        color = "#48bb78" if score >= 70 else "#ed8936" if score >= 40 else "#ff3366"
-                        st.markdown(f"""
-                        <div class="custom-card" style="text-align: center;">
-                            <h5 style="color: {color}; font-size: 13px; margin-bottom: 10px;">{component}</h5>
-                            <p style="font-size: 24px; font-weight: 700; color: white; margin: 0;">{score:.0f}</p>
-                            <div style="background: rgba(255, 255, 255, 0.1); border-radius: 8px; height: 6px; margin-top: 10px;">
-                                <div style="background: {color}; border-radius: 8px; height: 6px; width: {score}%;"></div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Puntuación Global", f"{health_score:.0f}/100")
+                with col2:
+                    st.metric("ROA", f"{latest['ROA']:.1f}%")
+                with col3:
+                    st.metric("ROE", f"{latest['ROE']:.1f}%")
         
         # Opciones de exportación
         st.divider()
@@ -1218,85 +564,36 @@ def main():
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            # Exportar métricas trimestrales
-            csv = quarterly_metrics.to_csv(index=False)
+            csv = quarterly_metrics.to_csv(index=False) if quarterly_metrics is not None else ""
             st.download_button(
                 label="📊 Descargar Métricas Trimestrales",
                 data=csv,
-                file_name=f"{selected_company.replace(' ', '_')}_metricas_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                use_container_width=True
+                file_name=f"{selected_company}_metricas_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
             )
         
         with col2:
-            # Generar resumen ejecutivo
-            tipo_label = "Sociedad de Valores" if company_type == "Sociedad" else "Agencia de Valores"
-            summary = f"""
-INFORME EJECUTIVO - {selected_company}
-Fecha: {datetime.now().strftime('%d/%m/%Y %H:%M')}
-Elaborado por: @Gsnchez | bquantfinance.com
-
-INFORMACIÓN DE LA ENTIDAD
-=========================
-Nombre: {selected_company}
-Tipo: {tipo_label}
-Trimestres Analizados: {len(quarterly_metrics)}
-
-RESULTADOS ÚLTIMO TRIMESTRE ({latest['periodo']})
-=================================================
-Comisiones Percibidas: €{latest['comisiones_percibidas']:,.0f}K (Variación: {latest['var_ingresos']:.1f}%)
-Resultado antes de Impuestos: €{latest['resultados_antes_impuestos']:,.0f}K (Variación: {latest['var_beneficio']:.1f}%)
-Activos Totales: €{latest['activos_totales']:,.0f}K
-Fondos Propios: €{latest['fondos_propios']:,.0f}K
-
-INDICADORES FINANCIEROS CLAVE
-=============================
-Rentabilidad sobre Activos (ROA): {latest['ROA']:.2f}%
-Rentabilidad sobre Patrimonio (ROE): {latest['ROE']:.2f}%
-Ratio de Eficiencia: {latest['ratio_eficiencia']:.2f}%
-Margen Neto: {latest['margen_neto']:.2f}%
-Apalancamiento Financiero: {latest['apalancamiento']:.2f}x
-
-EVALUACIÓN DE SALUD FINANCIERA
-==============================
-Puntuación Global: {overall_health:.1f}/100
-Estado: {'Excelente' if overall_health >= 75 else 'Bueno' if overall_health >= 50 else 'Regular' if overall_health >= 25 else 'Requiere Mejora'}
-
-MÉTRICAS DE CRECIMIENTO
-======================
-Crecimiento Promedio Trimestral: {quarterly_metrics['var_ingresos'][1:].mean():.1f}% (en comisiones)
-Volatilidad del Crecimiento: {quarterly_metrics['var_ingresos'][1:].std():.1f}%
-Crecimiento Total del Período: {((latest['comisiones_percibidas'] / quarterly_metrics.iloc[0]['comisiones_percibidas'] - 1) * 100):.1f}%
-            """
-            
             st.download_button(
                 label="📄 Descargar Resumen Ejecutivo",
-                data=summary,
-                file_name=f"{selected_company.replace(' ', '_')}_resumen_{datetime.now().strftime('%Y%m%d')}.txt",
-                mime="text/plain",
-                use_container_width=True
+                data="Resumen ejecutivo",
+                file_name=f"{selected_company}_resumen_{datetime.now().strftime('%Y%m%d')}.txt",
+                mime="text/plain"
             )
         
         with col3:
-            # Exportar todos los datos
-            all_data = company_data.to_csv(index=False)
             st.download_button(
                 label="📁 Descargar Datos Completos",
-                data=all_data,
-                file_name=f"{selected_company.replace(' ', '_')}_datos_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                use_container_width=True
+                data=company_data.to_csv(index=False),
+                file_name=f"{selected_company}_datos_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
             )
     
     # Pie de página
     st.divider()
     st.markdown("""
-        <div style='text-align: center; padding: 30px 20px; background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%); 
-                    border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.1); margin-top: 30px;'>
-            <p style='color: #00d4ff; font-size: 16px; font-weight: 600; margin-bottom: 8px;'>Panel de Análisis Financiero v2.0</p>
-            <p style='color: #a0aec0; font-size: 13px; margin-bottom: 16px;'>Análisis Profesional para Sociedades y Agencias de Valores</p>
-            <p style='color: white; font-size: 14px;'>Desarrollado por <strong style='color: #b794f6;'>@Gsnchez</strong></p>
-            <p style='color: #4a5568; font-size: 11px; margin-top: 8px;'>bquantfinance.com | Soluciones Financieras Profesionales</p>
+        <div style='text-align: center; padding: 20px;'>
+            <p style='color: #00d4ff; font-size: 14px;'>Panel de Análisis Financiero v2.0</p>
+            <p style='color: #a0aec0; font-size: 12px;'>Desarrollado por @Gsnchez | bquantfinance.com</p>
         </div>
     """, unsafe_allow_html=True)
 
