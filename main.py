@@ -483,36 +483,293 @@ def main():
                            [{'secondary_y': False}, {'secondary_y': False}]]
                 )
                 
-                # Gráficos...
+                # Ingresos y Beneficio
                 fig.add_trace(
                     go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['comisiones_percibidas'],
-                          name='Comisiones', marker_color='#00d4ff', opacity=0.7),
+                          name='Comisiones', marker_color='#00d4ff', opacity=0.7,
+                          text=quarterly_metrics['comisiones_percibidas'].round(0),
+                          textposition='outside'),
                     row=1, col=1, secondary_y=False
                 )
                 fig.add_trace(
                     go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['resultados_antes_impuestos'],
                               name='Beneficio', line=dict(color='#f687b3', width=3),
-                              mode='lines+markers'),
+                              mode='lines+markers', marker=dict(size=10)),
                     row=1, col=1, secondary_y=True
                 )
                 
+                # Activos y Patrimonio
+                fig.add_trace(
+                    go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['activos_totales'],
+                          name='Activos', marker_color='#4299e1', opacity=0.7),
+                    row=1, col=2, secondary_y=False
+                )
+                fig.add_trace(
+                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['fondos_propios'],
+                              name='Patrimonio', line=dict(color='#48bb78', width=3),
+                              mode='lines+markers', marker=dict(size=10)),
+                    row=1, col=2, secondary_y=True
+                )
+                
+                # Tasas de crecimiento
+                if len(quarterly_metrics) > 1:
+                    fig.add_trace(
+                        go.Scatter(x=quarterly_metrics['periodo'][1:], y=quarterly_metrics['var_ingresos'][1:],
+                                  name='Crec. Ingresos', line=dict(color='#00d4ff', width=2),
+                                  mode='lines+markers', marker=dict(size=8)),
+                        row=2, col=1
+                    )
+                    fig.add_trace(
+                        go.Scatter(x=quarterly_metrics['periodo'][1:], y=quarterly_metrics['var_activos'][1:],
+                                  name='Crec. Activos', line=dict(color='#b794f6', width=2),
+                                  mode='lines+markers', marker=dict(size=8)),
+                        row=2, col=1
+                    )
+                
+                # Márgenes
+                fig.add_trace(
+                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['margen_neto'],
+                              name='Margen Neto', line=dict(color='#ed8936', width=2),
+                              mode='lines+markers', fill='tozeroy', opacity=0.3),
+                    row=2, col=2
+                )
+                
+                # Actualizar diseño
                 fig.update_layout(**professional_theme['layout'], height=700, showlegend=True)
+                fig.update_yaxes(title_text="Importe (€K)", row=1, col=1, secondary_y=False)
+                fig.update_yaxes(title_text="Beneficio (€K)", row=1, col=1, secondary_y=True)
+                fig.update_yaxes(title_text="Importe (€K)", row=1, col=2, secondary_y=False)
+                fig.update_yaxes(title_text="Patrimonio (€K)", row=1, col=2, secondary_y=True)
+                fig.update_yaxes(title_text="Tasa (%)", row=2, col=1)
+                fig.update_yaxes(title_text="Margen (%)", row=2, col=2)
+                
                 st.plotly_chart(fig, use_container_width=True)
+                
+                # Tabla resumen
+                st.markdown("### 📋 Resumen de Rendimiento")
+                summary_df = quarterly_metrics[['periodo', 'comisiones_percibidas', 'resultados_antes_impuestos', 
+                                               'ROA', 'ROE', 'ratio_eficiencia']].round(2)
+                summary_df.columns = ['Trimestre', 'Comisiones (€K)', 'RAI (€K)', 'ROA (%)', 'ROE (%)', 'Eficiencia (%)']
+                st.dataframe(summary_df, use_container_width=True)
             
             with tab2:
-                st.markdown("### 📈 Análisis de Crecimiento")
-                st.info("Análisis de tendencias y crecimiento trimestral")
+                st.markdown("### 📈 Análisis de Trayectoria de Crecimiento")
+                
+                fig_growth = make_subplots(
+                    rows=2, cols=2,
+                    subplot_titles=("Crecimiento Acumulado", "Rendimiento Indexado (Base 100)",
+                                   "Evolución Trimestral", "Variación Porcentual"),
+                    vertical_spacing=0.12,
+                    horizontal_spacing=0.10
+                )
+                
+                # Crecimiento acumulado
+                quarterly_metrics['cum_ingresos'] = quarterly_metrics['comisiones_percibidas'].cumsum()
+                quarterly_metrics['cum_beneficio'] = quarterly_metrics['resultados_antes_impuestos'].cumsum()
+                
+                fig_growth.add_trace(
+                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['cum_ingresos'],
+                              name='Ingresos Acum.', line=dict(color='#00d4ff', width=3),
+                              mode='lines+markers', fill='tonexty'),
+                    row=1, col=1
+                )
+                
+                fig_growth.add_trace(
+                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['cum_beneficio'],
+                              name='Beneficio Acum.', line=dict(color='#f687b3', width=3),
+                              mode='lines+markers', fill='tozeroy'),
+                    row=1, col=1
+                )
+                
+                # Rendimiento indexado
+                if len(quarterly_metrics) > 0:
+                    base_revenue = quarterly_metrics['comisiones_percibidas'].iloc[0]
+                    base_assets = quarterly_metrics['activos_totales'].iloc[0]
+                    
+                    quarterly_metrics['indice_ingresos'] = (quarterly_metrics['comisiones_percibidas'] / base_revenue * 100) if base_revenue > 0 else 100
+                    quarterly_metrics['indice_activos'] = (quarterly_metrics['activos_totales'] / base_assets * 100) if base_assets > 0 else 100
+                    
+                    fig_growth.add_trace(
+                        go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['indice_ingresos'],
+                                  name='Índice Ingresos', line=dict(color='#00d4ff', width=2),
+                                  mode='lines+markers'),
+                        row=1, col=2
+                    )
+                    
+                    fig_growth.add_trace(
+                        go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['indice_activos'],
+                                  name='Índice Activos', line=dict(color='#4299e1', width=2, dash='dash'),
+                                  mode='lines+markers'),
+                        row=1, col=2
+                    )
+                    
+                    # Línea base 100
+                    fig_growth.add_hline(y=100, line_width=1, line_dash="dot", line_color="gray", row=1, col=2)
+                
+                # Evolución trimestral
+                fig_growth.add_trace(
+                    go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['comisiones_percibidas'],
+                          name='Comisiones', marker_color='#00d4ff', opacity=0.6),
+                    row=2, col=1
+                )
+                
+                # Variación porcentual
+                if len(quarterly_metrics) > 1:
+                    colors = ['#48bb78' if x > 0 else '#ff3366' for x in quarterly_metrics['var_ingresos'][1:]]
+                    
+                    fig_growth.add_trace(
+                        go.Bar(x=quarterly_metrics['periodo'][1:], y=quarterly_metrics['var_ingresos'][1:],
+                              name='Var. Ingresos', marker_color=colors, opacity=0.7),
+                        row=2, col=2
+                    )
+                
+                fig_growth.update_layout(**professional_theme['layout'], height=700, showlegend=True)
+                st.plotly_chart(fig_growth, use_container_width=True)
+                
+                # Métricas de crecimiento
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    avg_growth = quarterly_metrics['var_ingresos'][1:].mean() if len(quarterly_metrics) > 1 else 0
+                    st.metric("Crecimiento Promedio", f"{avg_growth:.1f}%")
+                
+                with col2:
+                    volatility = quarterly_metrics['var_ingresos'][1:].std() if len(quarterly_metrics) > 1 else 0
+                    st.metric("Volatilidad", f"{volatility:.1f}%")
+                
+                with col3:
+                    if len(quarterly_metrics) > 0:
+                        total_growth = ((quarterly_metrics['comisiones_percibidas'].iloc[-1] / 
+                                       quarterly_metrics['comisiones_percibidas'].iloc[0] - 1) * 100) if quarterly_metrics['comisiones_percibidas'].iloc[0] > 0 else 0
+                    else:
+                        total_growth = 0
+                    st.metric("Crecimiento Total", f"{total_growth:.1f}%")
             
             with tab3:
-                st.markdown("### ⚡ Métricas de Eficiencia")
-                st.info("ROA, ROE y ratios de eficiencia operativa")
+                st.markdown("### ⚡ Análisis de Eficiencia Operativa")
+                
+                fig_eff = make_subplots(
+                    rows=2, cols=2,
+                    subplot_titles=("ROA vs ROE", "Ratio Coste-Ingreso", 
+                                   "Apalancamiento", "Margen Neto"),
+                    vertical_spacing=0.12,
+                    horizontal_spacing=0.10
+                )
+                
+                # ROA vs ROE
+                fig_eff.add_trace(
+                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['ROA'],
+                              name='ROA', line=dict(color='#00d4ff', width=3),
+                              mode='lines+markers', marker=dict(size=10)),
+                    row=1, col=1
+                )
+                fig_eff.add_trace(
+                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['ROE'],
+                              name='ROE', line=dict(color='#f687b3', width=3),
+                              mode='lines+markers', marker=dict(size=10)),
+                    row=1, col=1
+                )
+                
+                # Ratio Coste-Ingreso
+                fig_eff.add_trace(
+                    go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['ratio_eficiencia'],
+                          name='Coste/Ingreso', marker_color='#ed8936', opacity=0.7,
+                          text=quarterly_metrics['ratio_eficiencia'].round(1),
+                          textposition='outside'),
+                    row=1, col=2
+                )
+                
+                # Apalancamiento
+                fig_eff.add_trace(
+                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['apalancamiento'],
+                              name='Apalancamiento', line=dict(color='#9f7aea', width=3),
+                              mode='lines+markers', fill='tozeroy', opacity=0.3),
+                    row=2, col=1
+                )
+                
+                # Margen neto
+                fig_eff.add_trace(
+                    go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['margen_neto'],
+                              name='Margen Neto', line=dict(color='#48bb78', width=3),
+                              mode='lines+markers', marker=dict(size=12),
+                              fill='tozeroy', opacity=0.3),
+                    row=2, col=2
+                )
+                
+                fig_eff.update_layout(**professional_theme['layout'], height=700, showlegend=True)
+                st.plotly_chart(fig_eff, use_container_width=True)
+                
+                # Indicadores clave
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("ROA Promedio", f"{quarterly_metrics['ROA'].mean():.2f}%")
+                
+                with col2:
+                    st.metric("ROE Promedio", f"{quarterly_metrics['ROE'].mean():.2f}%")
+                
+                with col3:
+                    st.metric("Eficiencia Promedio", f"{quarterly_metrics['ratio_eficiencia'].mean():.1f}%")
             
             with tab4:
-                st.markdown("### 🏆 Comparación con Competidores")
-                if comparison_companies:
-                    st.info(f"Comparando con {len(comparison_companies)} empresas del mismo tipo")
+                st.markdown("### 🏆 Análisis Comparativo con Competidores")
+                
+                if comparison_companies and not comparison_data.empty:
+                    # Preparar datos de comparación
+                    peer_metrics = []
+                    for comp in comparison_companies:
+                        comp_metrics = calculate_quarterly_metrics(combined, comp)
+                        if comp_metrics is not None and not comp_metrics.empty:
+                            latest_comp = comp_metrics.iloc[-1]
+                            peer_metrics.append({
+                                'Empresa': comp,
+                                'Ingresos': latest_comp['comisiones_percibidas'],
+                                'Beneficio': latest_comp['resultados_antes_impuestos'],
+                                'ROA': latest_comp['ROA'],
+                                'ROE': latest_comp['ROE'],
+                                'Eficiencia': latest_comp['ratio_eficiencia']
+                            })
+                    
+                    # Añadir empresa seleccionada
+                    peer_metrics.append({
+                        'Empresa': selected_company,
+                        'Ingresos': latest['comisiones_percibidas'],
+                        'Beneficio': latest['resultados_antes_impuestos'],
+                        'ROA': latest['ROA'],
+                        'ROE': latest['ROE'],
+                        'Eficiencia': latest['ratio_eficiencia']
+                    })
+                    
+                    peer_df = pd.DataFrame(peer_metrics)
+                    
+                    # Gráfico de barras comparativo
+                    fig_comp = go.Figure()
+                    
+                    metrics_to_plot = ['Ingresos', 'Beneficio', 'ROA', 'ROE']
+                    for metric in metrics_to_plot:
+                        colors = ['#00d4ff' if e == selected_company else '#b794f6' for e in peer_df['Empresa']]
+                        fig_comp.add_trace(go.Bar(
+                            name=metric,
+                            x=peer_df['Empresa'],
+                            y=peer_df[metric],
+                            marker_color=colors[0] if metric == 'Ingresos' else None
+                        ))
+                    
+                    fig_comp.update_layout(
+                        **professional_theme['layout'],
+                        height=500,
+                        barmode='group',
+                        title="Comparación con Competidores"
+                    )
+                    
+                    st.plotly_chart(fig_comp, use_container_width=True)
+                    
+                    # Tabla comparativa
+                    st.markdown("### 📊 Tabla Comparativa")
+                    peer_df_display = peer_df.round(2).sort_values('ROE', ascending=False)
+                    st.dataframe(peer_df_display, use_container_width=True)
                 else:
-                    st.warning("Active la comparación en el panel lateral")
+                    st.warning("Active la comparación en el panel lateral para ver este análisis")
             
             with tab5:
                 st.markdown("### ⚖️ Comparación entre Sociedades y Agencias de Valores")
@@ -522,7 +779,105 @@ def main():
                 agencias_data = combined[combined['tipo'] == 'Agencia']
                 
                 if len(sociedades_data) > 0 and len(agencias_data) > 0:
+                    # Calcular métricas promedio por tipo y período
+                    sociedades_avg = sociedades_data.groupby('periodo').agg({
+                        'comisiones_percibidas': 'mean',
+                        'resultados_antes_impuestos': 'mean',
+                        'activos_totales': 'mean',
+                        'fondos_propios': 'mean',
+                        'gastos_explotacion': 'mean',
+                        'margen_bruto': 'mean'
+                    }).round(0)
+                    
+                    agencias_avg = agencias_data.groupby('periodo').agg({
+                        'comisiones_percibidas': 'mean',
+                        'resultados_antes_impuestos': 'mean',
+                        'activos_totales': 'mean',
+                        'fondos_propios': 'mean',
+                        'gastos_explotacion': 'mean',
+                        'margen_bruto': 'mean'
+                    }).round(0)
+                    
+                    # Gráfico comparativo
+                    fig_comp = make_subplots(
+                        rows=2, cols=2,
+                        subplot_titles=("Ingresos Promedio por Tipo", "Rentabilidad Promedio", 
+                                       "Tamaño Promedio (Activos)", "Eficiencia Operativa"),
+                        vertical_spacing=0.12,
+                        horizontal_spacing=0.10
+                    )
+                    
+                    # Ingresos promedio
+                    fig_comp.add_trace(
+                        go.Scatter(x=sociedades_avg.index, y=sociedades_avg['comisiones_percibidas'],
+                                  name='Sociedades', line=dict(color='#b794f6', width=3),
+                                  mode='lines+markers', marker=dict(size=10)),
+                        row=1, col=1
+                    )
+                    fig_comp.add_trace(
+                        go.Scatter(x=agencias_avg.index, y=agencias_avg['comisiones_percibidas'],
+                                  name='Agencias', line=dict(color='#00d4ff', width=3),
+                                  mode='lines+markers', marker=dict(size=10)),
+                        row=1, col=1
+                    )
+                    
+                    # Rentabilidad
+                    fig_comp.add_trace(
+                        go.Bar(x=sociedades_avg.index, y=sociedades_avg['resultados_antes_impuestos'],
+                              name='Sociedades', marker_color='#b794f6', opacity=0.7),
+                        row=1, col=2
+                    )
+                    fig_comp.add_trace(
+                        go.Bar(x=agencias_avg.index, y=agencias_avg['resultados_antes_impuestos'],
+                              name='Agencias', marker_color='#00d4ff', opacity=0.7),
+                        row=1, col=2
+                    )
+                    
+                    # Activos
+                    fig_comp.add_trace(
+                        go.Scatter(x=sociedades_avg.index, y=sociedades_avg['activos_totales'],
+                                  name='Sociedades', line=dict(color='#b794f6', width=3),
+                                  mode='lines+markers', fill='tonexty'),
+                        row=2, col=1
+                    )
+                    fig_comp.add_trace(
+                        go.Scatter(x=agencias_avg.index, y=agencias_avg['activos_totales'],
+                                  name='Agencias', line=dict(color='#00d4ff', width=3),
+                                  mode='lines+markers', fill='tozeroy'),
+                        row=2, col=1
+                    )
+                    
+                    # Eficiencia
+                    if len(sociedades_avg) > 0:
+                        sociedades_avg['eficiencia'] = (sociedades_avg['gastos_explotacion'] / 
+                                                       sociedades_avg['margen_bruto'] * 100).fillna(0)
+                    
+                    if len(agencias_avg) > 0:
+                        agencias_avg['eficiencia'] = (agencias_avg['gastos_explotacion'] / 
+                                                     agencias_avg['margen_bruto'] * 100).fillna(0)
+                    
+                    fig_comp.add_trace(
+                        go.Bar(x=sociedades_avg.index, y=sociedades_avg['eficiencia'],
+                              name='Sociedades', marker_color='#b794f6', opacity=0.7),
+                        row=2, col=2
+                    )
+                    fig_comp.add_trace(
+                        go.Bar(x=agencias_avg.index, y=agencias_avg['eficiencia'],
+                              name='Agencias', marker_color='#00d4ff', opacity=0.7),
+                        row=2, col=2
+                    )
+                    
+                    fig_comp.update_layout(**professional_theme['layout'], height=700, showlegend=True)
+                    fig_comp.update_yaxes(title_text="Comisiones (€K)", row=1, col=1)
+                    fig_comp.update_yaxes(title_text="RAI (€K)", row=1, col=2)
+                    fig_comp.update_yaxes(title_text="Activos (€K)", row=2, col=1)
+                    fig_comp.update_yaxes(title_text="Ratio (%)", row=2, col=2)
+                    
+                    st.plotly_chart(fig_comp, use_container_width=True)
+                    
                     # Estadísticas comparativas
+                    st.markdown("### 📊 Estadísticas Comparativas: Sociedades vs Agencias")
+                    
                     col1, col2 = st.columns(2)
                     
                     with col1:
@@ -537,25 +892,55 @@ def main():
                         st.metric("Comisiones Promedio", f"€{agencias_data['comisiones_percibidas'].mean():,.0f}K")
                         st.metric("Activos Promedio", f"€{agencias_data['activos_totales'].mean():,.0f}K")
                 else:
-                    st.warning("No hay suficientes datos para comparar")
+                    st.warning("No hay suficientes datos para comparar Sociedades y Agencias")
             
             with tab6:
                 st.markdown("### 📉 Evaluación de Salud Financiera")
                 
                 # Calcular componentes de salud
-                health_score = min(100, (
-                    (latest['ROE'] / 20 * 100) * 0.3 +
-                    (latest['ROA'] / 10 * 100) * 0.3 +
-                    (100 - latest['ratio_eficiencia']) * 0.4
+                health_components = {
+                    'Rentabilidad': min(100, (latest['ROE'] / 20 * 100)),
+                    'Calidad de Activos': min(100, (latest['ROA'] / 10 * 100)),
+                    'Eficiencia': max(0, (100 - latest['ratio_eficiencia'])),
+                    'Margen': min(100, latest['margen_neto'] * 5) if latest['margen_neto'] > 0 else 0,
+                    'Solvencia': min(100, 100 / latest['apalancamiento']) if latest['apalancamiento'] > 0 else 100
+                }
+                
+                overall_health = sum(health_components.values()) / len(health_components)
+                
+                # Gauge de salud financiera
+                fig_health = go.Figure(go.Indicator(
+                    mode = "gauge+number",
+                    value = overall_health,
+                    domain = {'x': [0, 1], 'y': [0, 1]},
+                    title = {'text': "Puntuación de Salud Financiera"},
+                    gauge = {
+                        'axis': {'range': [None, 100]},
+                        'bar': {'color': "#00d4ff"},
+                        'steps': [
+                            {'range': [0, 25], 'color': '#ff3366'},
+                            {'range': [25, 50], 'color': '#ed8936'},
+                            {'range': [50, 75], 'color': '#ecc94b'},
+                            {'range': [75, 100], 'color': '#48bb78'}
+                        ],
+                        'threshold': {
+                            'line': {'color': "white", 'width': 4},
+                            'thickness': 0.75,
+                            'value': overall_health
+                        }
+                    }
                 ))
                 
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Puntuación Global", f"{health_score:.0f}/100")
-                with col2:
-                    st.metric("ROA", f"{latest['ROA']:.1f}%")
-                with col3:
-                    st.metric("ROE", f"{latest['ROE']:.1f}%")
+                fig_health.update_layout(**professional_theme['layout'], height=400)
+                st.plotly_chart(fig_health, use_container_width=True)
+                
+                # Componentes de salud
+                st.markdown("### 🎯 Componentes de la Puntuación")
+                cols = st.columns(5)
+                for idx, (component, score) in enumerate(health_components.items()):
+                    with cols[idx]:
+                        color = "#48bb78" if score >= 70 else "#ed8936" if score >= 40 else "#ff3366"
+                        st.metric(component, f"{score:.0f}/100")
         
         # Opciones de exportación
         st.divider()
@@ -573,9 +958,26 @@ def main():
             )
         
         with col2:
+            summary_text = f"""
+RESUMEN EJECUTIVO - {selected_company}
+Fecha: {datetime.now().strftime('%d/%m/%Y')}
+
+MÉTRICAS CLAVE (Último Trimestre)
+==================================
+Comisiones Percibidas: €{latest['comisiones_percibidas']:,.0f}K
+Resultado antes de Impuestos: €{latest['resultados_antes_impuestos']:,.0f}K
+ROA: {latest['ROA']:.2f}%
+ROE: {latest['ROE']:.2f}%
+Ratio de Eficiencia: {latest['ratio_eficiencia']:.2f}%
+
+SALUD FINANCIERA
+================
+Puntuación Global: {overall_health:.1f}/100
+            """ if quarterly_metrics is not None and not quarterly_metrics.empty else "No hay datos disponibles"
+            
             st.download_button(
                 label="📄 Descargar Resumen Ejecutivo",
-                data="Resumen ejecutivo",
+                data=summary_text,
                 file_name=f"{selected_company}_resumen_{datetime.now().strftime('%Y%m%d')}.txt",
                 mime="text/plain"
             )
