@@ -226,9 +226,18 @@ st.markdown("""
 
 # Función para cargar datos
 @st.cache_data
-def load_data(sociedades_file, agencias_file):
-    sociedades = pd.read_excel(sociedades_file)
-    agencias = pd.read_excel(agencias_file)
+def load_data():
+    try:
+        sociedades = pd.read_excel('sociedades_estructurado.xlsx')
+        agencias = pd.read_excel('agencias_estructurado.xlsx')
+    except FileNotFoundError:
+        # Try alternative paths if files are in a different location
+        try:
+            sociedades = pd.read_excel('./sociedades_estructurado.xlsx')
+            agencias = pd.read_excel('./agencias_estructurado.xlsx')
+        except:
+            st.error("❌ No se encontraron los archivos de datos. Asegúrese de que 'sociedades_estructurado.xlsx' y 'agencias_estructurado.xlsx' estén en el directorio del proyecto.")
+            st.stop()
     
     # Añadir columna tipo
     sociedades['tipo'] = 'Sociedad'
@@ -321,55 +330,48 @@ def main():
     st.markdown('<p class="sub-header">Sociedades de Valores y Agencias de Valores - Análisis Trimestral</p>', unsafe_allow_html=True)
     st.markdown('<p style="text-align: center; color: #4a5568; font-size: 12px; margin-bottom: 30px;">Desarrollado por @Gsnchez | bquantfinance.com</p>', unsafe_allow_html=True)
     
-    # Cargadores de archivos
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown("### 📁 Importar Datos")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        sociedades_file = st.file_uploader(
-            "Cargar archivo de Sociedades (ESIs)",
-            type=['xlsx', 'xls'],
-            key="sociedades",
-            help="Cargar sociedades_estructurado.xlsx"
-        )
-    
-    with col2:
-        agencias_file = st.file_uploader(
-            "Cargar archivo de Agencias (AVs)", 
-            type=['xlsx', 'xls'],
-            key="agencias",
-            help="Cargar agencias_estructurado.xlsx"
-        )
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Verificar si ambos archivos están cargados
-    if not sociedades_file or not agencias_file:
-        st.info("📤 Por favor, cargue ambos archivos Excel para comenzar el análisis")
-        
-        # Mostrar información sobre la estructura esperada
-        st.markdown("""
-        <div class="custom-card" style="margin-top: 30px;">
-            <h3 style="color: #00d4ff; margin-bottom: 20px;">📊 Funcionalidades del Panel</h3>
-            <ul style="color: #a0aec0; line-height: 2;">
-                <li>📈 <strong>Análisis Trimestral:</strong> Seguimiento detallado del rendimiento por empresa</li>
-                <li>🔄 <strong>Variaciones Trimestrales:</strong> Evolución de ingresos, activos y rentabilidad</li>
-                <li>⚖️ <strong>Comparación por Tipo:</strong> Análisis diferenciado entre Sociedades y Agencias</li>
-                <li>📊 <strong>Indicadores de Eficiencia:</strong> ROA, ROE, ratio de eficiencia operativa</li>
-                <li>🎯 <strong>Benchmarking Sectorial:</strong> Comparación con empresas del mismo tipo</li>
-                <li>💰 <strong>Evaluación Financiera:</strong> Puntuación integral de salud financiera</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-        return
-    
-    # Cargar datos
-    with st.spinner('⏳ Procesando datos financieros...'):
+    # Cargar datos directamente
+    with st.spinner('⏳ Cargando datos financieros...'):
         try:
-            sociedades, agencias, combined = load_data(sociedades_file, agencias_file)
-            st.success("✅ Datos cargados correctamente")
+            sociedades, agencias, combined = load_data()
+            
+            # Mostrar información de datos cargados
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric(
+                    label="📊 Total Registros",
+                    value=f"{len(combined):,}",
+                    delta=None
+                )
+            with col2:
+                st.metric(
+                    label="🏢 Sociedades",
+                    value=f"{sociedades['entidad'].nunique()}",
+                    delta=None
+                )
+            with col3:
+                st.metric(
+                    label="🏦 Agencias",
+                    value=f"{agencias['entidad'].nunique()}",
+                    delta=None
+                )
+            
         except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+            st.error(f"❌ Error al cargar los datos: {str(e)}")
+            st.info("""
+            ### 📁 Archivos Requeridos
+            
+            Asegúrese de que los siguientes archivos estén en el directorio del proyecto:
+            - **sociedades_estructurado.xlsx**: Datos de Sociedades de Valores
+            - **agencias_estructurado.xlsx**: Datos de Agencias de Valores
+            
+            Los archivos deben contener las siguientes columnas:
+            - entidad, periodo, fecha, año, mes
+            - fondos_propios, activos_totales
+            - comisiones_percibidas, comisiones_netas
+            - margen_bruto, gastos_explotacion
+            - resultados_antes_impuestos
+            """)
             st.stop()
     
     # Configuración en barra lateral
