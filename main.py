@@ -453,6 +453,15 @@ def main():
             index=0
         )
         
+        show_trends = st.checkbox("Mostrar Líneas de Tendencia", value=True)lambda x: {
+                'comisiones_percibidas': 'Comisiones Percibidas',
+                'resultados_antes_impuestos': 'Resultado antes de Impuestos',
+                'activos_totales': 'Activos Totales',
+                'fondos_propios': 'Fondos Propios'
+            }[x],
+            index=0
+        )
+        
         show_comparison = st.checkbox("Mostrar Comparación Sociedades vs Agencias", value=True)
         show_trends = st.checkbox("Mostrar Líneas de Tendencia", value=True)
     
@@ -974,13 +983,13 @@ def main():
                     )
             
             with tab5:
-                if show_comparison:
-                    st.markdown("### ⚖️ Comparación entre Sociedades y Agencias de Valores")
-                    
-                    # Separar datos por tipo
-                    sociedades_data = combined[combined['tipo'] == 'Sociedad']
-                    agencias_data = combined[combined['tipo'] == 'Agencia']
-                    
+                st.markdown("### ⚖️ Comparación entre Sociedades y Agencias de Valores")
+                
+                # Separar datos por tipo
+                sociedades_data = combined[combined['tipo'] == 'Sociedad']
+                agencias_data = combined[combined['tipo'] == 'Agencia']
+                
+                if len(sociedades_data) > 0 and len(agencias_data) > 0:
                     # Calcular métricas promedio por tipo y período
                     sociedades_avg = sociedades_data.groupby('periodo').agg({
                         'comisiones_percibidas': 'mean',
@@ -1050,10 +1059,17 @@ def main():
                     )
                     
                     # Eficiencia (ratio gastos/ingresos)
-                    sociedades_avg['eficiencia'] = (sociedades_avg['gastos_explotacion'] / 
-                                                   sociedades_avg['margen_bruto'] * 100)
-                    agencias_avg['eficiencia'] = (agencias_avg['gastos_explotacion'] / 
-                                                 agencias_avg['margen_bruto'] * 100)
+                    if len(sociedades_avg) > 0 and 'margen_bruto' in sociedades_avg.columns:
+                        sociedades_avg['eficiencia'] = (sociedades_avg['gastos_explotacion'] / 
+                                                       sociedades_avg['margen_bruto'] * 100).fillna(0)
+                    else:
+                        sociedades_avg['eficiencia'] = 0
+                        
+                    if len(agencias_avg) > 0 and 'margen_bruto' in agencias_avg.columns:
+                        agencias_avg['eficiencia'] = (agencias_avg['gastos_explotacion'] / 
+                                                     agencias_avg['margen_bruto'] * 100).fillna(0)
+                    else:
+                        agencias_avg['eficiencia'] = 0
                     
                     fig_comp.add_trace(
                         go.Bar(x=sociedades_avg.index, y=sociedades_avg['eficiencia'],
@@ -1081,27 +1097,57 @@ def main():
                     
                     with col1:
                         st.markdown("##### 📈 Sociedades de Valores")
-                        esi_stats = {
+                        sociedades_stats = {
                             'Número de Entidades': sociedades_data['entidad'].nunique(),
                             'Comisiones Promedio': f"€{sociedades_data['comisiones_percibidas'].mean():,.0f}K",
                             'Activos Promedio': f"€{sociedades_data['activos_totales'].mean():,.0f}K",
-                            'ROE Promedio': f"{(sociedades_data['resultados_antes_impuestos'].sum() / sociedades_data['fondos_propios'].sum() * 100):.1f}%",
-                            'Ratio Eficiencia': f"{(sociedades_data['gastos_explotacion'].sum() / sociedades_data['margen_bruto'].sum() * 100):.1f}%"
+                            'Fondos Propios Promedio': f"€{sociedades_data['fondos_propios'].mean():,.0f}K",
+                            'ROE Promedio': f"{(sociedades_data['resultados_antes_impuestos'].sum() / sociedades_data['fondos_propios'].sum() * 100):.1f}%" if sociedades_data['fondos_propios'].sum() > 0 else "0.0%",
+                            'Ratio Eficiencia': f"{(sociedades_data['gastos_explotacion'].sum() / sociedades_data['margen_bruto'].sum() * 100):.1f}%" if sociedades_data['margen_bruto'].sum() > 0 else "0.0%"
                         }
-                        for key, value in esi_stats.items():
+                        for key, value in sociedades_stats.items():
                             st.markdown(f"**{key}:** {value}")
                     
                     with col2:
                         st.markdown("##### 🏢 Agencias de Valores")
-                        av_stats = {
+                        agencias_stats = {
                             'Número de Entidades': agencias_data['entidad'].nunique(),
                             'Comisiones Promedio': f"€{agencias_data['comisiones_percibidas'].mean():,.0f}K",
                             'Activos Promedio': f"€{agencias_data['activos_totales'].mean():,.0f}K",
-                            'ROE Promedio': f"{(agencias_data['resultados_antes_impuestos'].sum() / agencias_data['fondos_propios'].sum() * 100):.1f}%",
-                            'Ratio Eficiencia': f"{(agencias_data['gastos_explotacion'].sum() / agencias_data['margen_bruto'].sum() * 100):.1f}%"
+                            'Fondos Propios Promedio': f"€{agencias_data['fondos_propios'].mean():,.0f}K",
+                            'ROE Promedio': f"{(agencias_data['resultados_antes_impuestos'].sum() / agencias_data['fondos_propios'].sum() * 100):.1f}%" if agencias_data['fondos_propios'].sum() > 0 else "0.0%",
+                            'Ratio Eficiencia': f"{(agencias_data['gastos_explotacion'].sum() / agencias_data['margen_bruto'].sum() * 100):.1f}%" if agencias_data['margen_bruto'].sum() > 0 else "0.0%"
                         }
-                        for key, value in av_stats.items():
+                        for key, value in agencias_stats.items():
                             st.markdown(f"**{key}:** {value}")
+                    
+                    # Tabla comparativa detallada
+                    st.markdown("### 📈 Análisis Comparativo Detallado")
+                    
+                    comparison_metrics = {
+                        'Métrica': ['Total Entidades', 'Comisiones Totales (€K)', 'Activos Totales (€K)', 
+                                   'Fondos Propios Totales (€K)', 'Beneficio Total (€K)'],
+                        'Sociedades': [
+                            sociedades_data['entidad'].nunique(),
+                            f"{sociedades_data['comisiones_percibidas'].sum():,.0f}",
+                            f"{sociedades_data['activos_totales'].sum():,.0f}",
+                            f"{sociedades_data['fondos_propios'].sum():,.0f}",
+                            f"{sociedades_data['resultados_antes_impuestos'].sum():,.0f}"
+                        ],
+                        'Agencias': [
+                            agencias_data['entidad'].nunique(),
+                            f"{agencias_data['comisiones_percibidas'].sum():,.0f}",
+                            f"{agencias_data['activos_totales'].sum():,.0f}",
+                            f"{agencias_data['fondos_propios'].sum():,.0f}",
+                            f"{agencias_data['resultados_antes_impuestos'].sum():,.0f}"
+                        ]
+                    }
+                    
+                    comparison_df = pd.DataFrame(comparison_metrics)
+                    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+                    
+                else:
+                    st.warning("⚠️ No hay suficientes datos para comparar Sociedades y Agencias. Asegúrese de que los datos incluyan ambos tipos de entidades.")
             
             with tab6:
                 st.markdown("### 📉 Evaluación de Salud Financiera")
