@@ -680,9 +680,10 @@ def main():
         st.markdown("### 📅 Período de Análisis")
         available_periods = sorted(combined['periodo'].unique())
         
+        # MODIFICATION: Removed "Personalizado" option and the corresponding multiselect widget.
         period_mode = st.selectbox(
             "Seleccionar período",
-            ["Último año (4 trim.)", "Último trimestre", "Todo el histórico", "Personalizado"],
+            ["Último año (4 trim.)", "Último trimestre", "Todo el histórico"],
             label_visibility="collapsed"
         )
         
@@ -692,12 +693,6 @@ def main():
             selected_periods = [available_periods[-1]] if available_periods else []
         elif period_mode == "Todo el histórico":
             selected_periods = available_periods
-        else:  # Personalizado
-            selected_periods = st.multiselect(
-                "Seleccionar trimestres:",
-                available_periods,
-                default=available_periods[-4:] if len(available_periods) >= 4 else available_periods
-            )
         
         st.caption(f"📊 {len(selected_periods)} trimestres seleccionados")
         
