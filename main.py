@@ -676,27 +676,10 @@ def main():
         
         st.markdown("---")
         
-        # Period selector
-        st.markdown("### 📅 Período de Análisis")
+        # MODIFICATION: Removed the entire "Periodo de Análisis" section.
+        # The analysis will now always use the full available history.
         available_periods = sorted(combined['periodo'].unique())
-        
-        # MODIFICATION: Removed "Personalizado" option and the corresponding multiselect widget.
-        period_mode = st.selectbox(
-            "Seleccionar período",
-            ["Último año (4 trim.)", "Último trimestre", "Todo el histórico"],
-            label_visibility="collapsed"
-        )
-        
-        if period_mode == "Último año (4 trim.)":
-            selected_periods = available_periods[-4:] if len(available_periods) >= 4 else available_periods
-        elif period_mode == "Último trimestre":
-            selected_periods = [available_periods[-1]] if available_periods else []
-        elif period_mode == "Todo el histórico":
-            selected_periods = available_periods
-        
-        st.caption(f"📊 {len(selected_periods)} trimestres seleccionados")
-        
-        st.markdown("---")
+        selected_periods = available_periods
         
         # Comparison section - initialize comparison_companies first
         comparison_companies = []
@@ -761,7 +744,7 @@ def main():
             <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; font-size: 12px;'>
                 <strong>{selected_company[:30]}{'...' if len(selected_company) > 30 else ''}</strong><br>
                 <span style='color: #a0aec0;'>
-                {len(selected_periods)} períodos | 
+                Todo el histórico ({len(selected_periods)} trim.) | 
                 {f'{len(comparison_companies)} competidores' if enable_comparison else 'Sin comparación'}
                 </span>
             </div>
