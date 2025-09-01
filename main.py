@@ -676,16 +676,14 @@ def main():
         
         st.markdown("---")
         
-        # MODIFICATION: Removed the entire "Periodo de Análisis" section.
-        # The analysis will now always use the full available history.
-        available_periods = sorted(combined['periodo'].unique())
-        selected_periods = available_periods
+        # MODIFICATION: The "Período de Análisis" section has been completely removed.
+        # The analysis will now always use the full available history for the selected company.
         
         # Comparison section - initialize comparison_companies first
         comparison_companies = []
         
         # Streamlined comparison with expander
-        with st.expander("🔄 **Comparación con Competidores**", expanded=False):
+        with st.expander("🔄 **Comparación con Competidores**", expanded=True): # Expanded by default for better visibility
             if company_type and selected_company:
                 # Get entities of same type, excluding selected company
                 same_type_entities = combined[
@@ -695,9 +693,9 @@ def main():
                 
                 if len(same_type_entities) > 0:
                     # Calculate similar companies by size
-                    company_data = combined[combined['entidad'] == selected_company]
-                    if not company_data.empty:
-                        company_size = company_data['activos_totales'].mean()
+                    company_data_for_size = combined[combined['entidad'] == selected_company]
+                    if not company_data_for_size.empty:
+                        company_size = company_data_for_size['activos_totales'].mean()
                         
                         # Get size data for all companies of same type
                         size_data = []
@@ -737,6 +735,9 @@ def main():
         # Enable comparison flag
         enable_comparison = len(comparison_companies) > 0
         
+        # Always use all available periods
+        selected_periods = sorted(combined['periodo'].unique())
+        
         # Compact summary at bottom
         if selected_company:
             st.markdown("---")
@@ -744,13 +745,13 @@ def main():
             <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; font-size: 12px;'>
                 <strong>{selected_company[:30]}{'...' if len(selected_company) > 30 else ''}</strong><br>
                 <span style='color: #a0aec0;'>
-                Todo el histórico ({len(selected_periods)} trim.) | 
+                Histórico ({len(selected_periods)} trim.) | 
                 {f'{len(comparison_companies)} competidores' if enable_comparison else 'Sin comparación'}
                 </span>
             </div>
             """, unsafe_allow_html=True)
     
-    # Filter data
+    # Filter data - this now uses all selected_periods by default
     company_data = combined[
         (combined['entidad'] == selected_company) & 
         (combined['periodo'].isin(selected_periods))
@@ -788,28 +789,28 @@ def main():
             
             with col1:
                 st.metric(
-                    label="💰 Comisiones Percibidas",
+                    label="💰 Comisiones Percibidas (Últ. Trim.)",
                     value=f"€{latest['comisiones_percibidas']:,.0f}K",
                     delta=f"{latest['var_ingresos']:.1f}% vs trim. anterior" if len(quarterly_metrics) > 1 else None
                 )
             
             with col2:
                 st.metric(
-                    label="📊 Resultado antes Impuestos",
+                    label="📊 Resultado (Últ. Trim.)",
                     value=f"€{latest['resultados_antes_impuestos']:,.0f}K",
                     delta=f"{latest['var_beneficio']:.1f}% vs trim. anterior" if len(quarterly_metrics) > 1 else None
                 )
             
             with col3:
                 st.metric(
-                    label="📈 ROE",
+                    label="📈 ROE (Últ. Trim.)",
                     value=f"{latest['ROE']:.1f}%",
                     delta=f"{latest['ROE'] - prev['ROE']:.1f}pp" if len(quarterly_metrics) > 1 else None
                 )
             
             with col4:
                 st.metric(
-                    label="⚡ Ratio de Eficiencia",
+                    label="⚡ Eficiencia (Últ. Trim.)",
                     value=f"{latest['ratio_eficiencia']:.1f}%",
                     delta=f"{latest['ratio_eficiencia'] - prev['ratio_eficiencia']:.1f}pp" if len(quarterly_metrics) > 1 else None,
                     delta_color="inverse"
@@ -906,7 +907,7 @@ def main():
                 summary_df = quarterly_metrics[['periodo', 'comisiones_percibidas', 'resultados_antes_impuestos', 
                                                'ROA', 'ROE', 'ratio_eficiencia']].round(2)
                 summary_df.columns = ['Trimestre', 'Comisiones (€K)', 'RAI (€K)', 'ROA (%)', 'ROE (%)', 'Eficiencia (%)']
-                st.dataframe(summary_df, use_container_width=True)
+                st.dataframe(summary_df.sort_values('Trimestre', ascending=False), use_container_width=True)
             
             with tab2:
                 st.markdown("### 📈 Análisis de Trayectoria de Crecimiento")
@@ -987,11 +988,11 @@ def main():
                 
                 with col1:
                     avg_growth = quarterly_metrics['var_ingresos'][1:].mean() if len(quarterly_metrics) > 1 else 0
-                    st.metric("Crecimiento Promedio", f"{avg_growth:.1f}%")
+                    st.metric("Crecimiento Trimestral Promedio", f"{avg_growth:.1f}%")
                 
                 with col2:
                     volatility = quarterly_metrics['var_ingresos'][1:].std() if len(quarterly_metrics) > 1 else 0
-                    st.metric("Volatilidad", f"{volatility:.1f}%")
+                    st.metric("Volatilidad Crecimiento", f"{volatility:.1f}%")
                 
                 with col3:
                     if len(quarterly_metrics) > 0:
@@ -999,7 +1000,7 @@ def main():
                                        quarterly_metrics['comisiones_percibidas'].iloc[0] - 1) * 100) if quarterly_metrics['comisiones_percibidas'].iloc[0] > 0 else 0
                     else:
                         total_growth = 0
-                    st.metric("Crecimiento Total", f"{total_growth:.1f}%")
+                    st.metric("Crecimiento Total del Período", f"{total_growth:.1f}%")
             
             with tab3:
                 st.markdown("### ⚡ Análisis de Eficiencia Operativa")
@@ -1115,13 +1116,13 @@ def main():
                         **professional_theme['layout'],
                         height=500,
                         barmode='group',
-                        title="Comparación con Competidores"
+                        title="Comparación con Competidores (Último Trimestre)"
                     )
                     
                     st.plotly_chart(fig_comp, use_container_width=True)
                     
                     # Comparison table
-                    st.markdown("### 📊 Tabla Comparativa")
+                    st.markdown("### 📊 Tabla Comparativa (Último Trimestre)")
                     peer_df_display = peer_df.round(2).sort_values('ROE', ascending=False)
                     st.dataframe(peer_df_display, use_container_width=True)
                 else:
@@ -1255,10 +1256,10 @@ def main():
                 
                 # Calculate health components
                 health_components = {
-                    'Rentabilidad': min(100, (latest['ROE'] / 20 * 100)),
-                    'Calidad de Activos': min(100, (latest['ROA'] / 10 * 100)),
+                    'Rentabilidad': min(100, max(-100, (latest['ROE'] / 20 * 100))),
+                    'Calidad de Activos': min(100, max(-100, (latest['ROA'] / 10 * 100))),
                     'Eficiencia': max(0, (100 - latest['ratio_eficiencia'])),
-                    'Margen': min(100, latest['margen_neto'] * 5) if latest['margen_neto'] > 0 else 0,
+                    'Margen': min(100, max(-100, latest['margen_neto'] * 5)),
                     'Solvencia': min(100, 100 / latest['apalancamiento']) if latest['apalancamiento'] > 0 else 100
                 }
                 
@@ -1269,9 +1270,9 @@ def main():
                     mode = "gauge+number",
                     value = overall_health,
                     domain = {'x': [0, 1], 'y': [0, 1]},
-                    title = {'text': "Puntuación de Salud Financiera"},
+                    title = {'text': "Puntuación de Salud Financiera (Último Trimestre)"},
                     gauge = {
-                        'axis': {'range': [None, 100]},
+                        'axis': {'range': [0, 100]},
                         'bar': {'color': "#00d4ff"},
                         'steps': [
                             {'range': [0, 25], 'color': '#ff3366'},
@@ -1295,7 +1296,6 @@ def main():
                 cols = st.columns(5)
                 for idx, (component, score) in enumerate(health_components.items()):
                     with cols[idx]:
-                        color = "#48bb78" if score >= 70 else "#ed8936" if score >= 40 else "#ff3366"
                         st.metric(component, f"{score:.0f}/100")
         
         # Export options
