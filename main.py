@@ -187,6 +187,101 @@ def clean_entity_name(name):
     name = name.rstrip('.,')
     return name
 
+# Function to detect and merge duplicate entities
+def merge_duplicate_entities(df):
+    """Detect and merge entities that are likely duplicates"""
+    if df.empty:
+        return df
+    
+    # Group entities and calculate their data quality
+    entity_quality = df.groupby('entidad').agg({
+        'comisiones_percibidas': ['sum', 'count', 'max'],
+        'activos_totales': ['sum', 'max'],
+        'fondos_propios': ['sum', 'max']
+    }).reset_index()
+    
+    # Flatten column names
+    entity_quality.columns = ['entidad'] + ['_'.join(col).strip() if col[0] != 'entidad' else col for col in entity_quality.columns[1:]]
+    
+    # Calculate a quality score
+    entity_quality['quality_score'] = (
+        (entity_quality['comisiones_percibidas_sum'].abs() > 0).astype(int) * 10 +
+        (entity_quality['activos_totales_sum'] > 0).astype(int) * 5 +
+        entity_quality['comisiones_percibidas_count'] * 2
+    )
+    
+    # Sort by entity name to group similar names together
+    entity_quality = entity_quality.sort_values('entidad')
+    
+    # Dictionary to map duplicates to the best version
+    entity_mapping = {}
+    processed = set()
+    
+    entities = entity_quality['entidad'].tolist()
+    
+    for i, entity1 in enumerate(entities):
+        if entity1 in processed:
+            continue
+            
+        # Check for potential duplicates
+        potential_duplicates = []
+        entity1_upper = entity1.upper().replace('.', '').replace(',', '').replace(' ', '')
+        
+        for j, entity2 in enumerate(entities):
+            if i == j or entity2 in processed:
+                continue
+                
+            entity2_upper = entity2.upper().replace('.', '').replace(',', '').replace(' ', '')
+            
+            # Check if one is contained in the other or they're very similar
+            if (entity1_upper in entity2_upper or 
+                entity2_upper in entity1_upper or
+                entity1_upper.startswith(entity2_upper[:min(10, len(entity2_upper))]) or
+                entity2_upper.startswith(entity1_upper[:min(10, len(entity1_upper))])):
+                
+                potential_duplicates.append(entity2)
+        
+        if potential_duplicates:
+            # Include the original entity in the list
+            all_versions = [entity1] + potential_duplicates
+            
+            # Get quality scores for all versions
+            versions_with_scores = []
+            for version in all_versions:
+                score = entity_quality[entity_quality['entidad'] == version]['quality_score'].values
+                if len(score) > 0:
+                    versions_with_scores.append((version, score[0]))
+            
+            # Sort by quality score (descending) and then by name length (longer is usually more complete)
+            versions_with_scores.sort(key=lambda x: (-x[1], -len(x[0])))
+            
+            # The best version is the one with highest score
+            best_version = versions_with_scores[0][0]
+            
+            # Map all versions to the best one
+            for version, _ in versions_with_scores:
+                if version != best_version:
+                    entity_mapping[version] = best_version
+                processed.add(version)
+    
+    # Apply the mapping
+    if entity_mapping:
+        df['entidad'] = df['entidad'].replace(entity_mapping)
+    
+    # After merging names, consolidate the data
+    # For duplicate entity-period combinations, keep the row with most data
+    df['data_completeness'] = (
+        (df['comisiones_percibidas'].abs() > 0).astype(int) * 3 +
+        (df['activos_totales'] > 0).astype(int) * 2 +
+        (df['fondos_propios'] != 0).astype(int)
+    )
+    
+    df = df.sort_values(['entidad', 'periodo', 'data_completeness'], ascending=[True, True, False])
+    df = df.drop_duplicates(subset=['entidad', 'periodo'], keep='first')
+    df = df.drop('data_completeness', axis=1)
+    
+    return df
+
 # Function to convert YTD (Year-to-Date) accumulated data to quarterly
 def accumulated_to_quarterly(df):
     """Convert YTD accumulated data to quarterly data
@@ -410,31 +505,9 @@ def load_data():
     sociedades = filter_empty_entities(sociedades)
     agencias = filter_empty_entities(agencias)
     
-    # Handle any potential variations of the same company name
-    # Group similar names and keep the most common/complete version
-    def standardize_similar_names(df):
-        # Create a mapping of potentially similar names
-        entities = df['entidad'].unique()
-        name_mapping = {}
-        
-        for entity in entities:
-            # Check for entities that are substrings of each other
-            base_name = entity.replace(',', '').replace('.', '').upper()
-            
-            # Find the "best" version (usually the longest/most complete)
-            for other in entities:
-                other_base = other.replace(',', '').replace('.', '').upper()
-                if base_name in other_base and len(other) > len(entity):
-                    name_mapping[entity] = other
-                    break
-        
-        # Apply mapping
-        df['entidad'] = df['entidad'].replace(name_mapping)
-        
-        return df
-    
-    sociedades = standardize_similar_names(sociedades)
-    agencias = standardize_similar_names(agencias)
+    # Merge duplicate entities (this handles variations like ACTIVOTRADE VALOR... and ACTIVOTRADE VALORES...)
+    sociedades = merge_duplicate_entities(sociedades)
+    agencias = merge_duplicate_entities(agencias)
     
     # Remove any remaining NaN or infinite values in key columns
     key_cols = ['comisiones_percibidas', 'activos_totales', 'fondos_propios', 
