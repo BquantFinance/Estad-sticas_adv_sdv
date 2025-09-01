@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Professional CSS styling
+# Professional CSS styling (unchanged)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -170,34 +170,147 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Función para cargar datos
+# Function to convert accumulated data to quarterly
+def accumulated_to_quarterly(df):
+    """Convert accumulated data to quarterly data"""
+    df = df.sort_values(['Denominación', 'Año', 'Fecha'])
+    
+    quarterly_data = []
+    
+    for entity in df['Denominación'].unique():
+        entity_data = df[df['Denominación'] == entity].copy()
+        
+        for year in entity_data['Año'].unique():
+            year_data = entity_data[entity_data['Año'] == year].sort_values('Fecha')
+            
+            if len(year_data) == 0:
+                continue
+            
+            # Financial columns that need to be converted from accumulated to quarterly
+            financial_cols = [
+                'Comisiones_Percibidas_Miles_EUR',
+                'Comisiones_Netas_Miles_EUR',
+                'Margen_Bruto_Miles_EUR',
+                'Gastos_Explotación_Miles_EUR',
+                'Resultados_Antes_Impuestos_Miles_EUR'
+            ]
+            
+            # Balance sheet columns that are not accumulated
+            balance_cols = [
+                'Fondos_Propios_Miles_EUR',
+                'Activos_Totales_Miles_EUR'
+            ]
+            
+            prev_row = None
+            for idx, row in year_data.iterrows():
+                quarterly_row = row.copy()
+                
+                # Determine quarter based on month
+                month = row['Mes']
+                if month == 'MARZO':
+                    quarter = 'Q1'
+                    # Q1 values are already quarterly (no previous quarter in the year)
+                    for col in financial_cols:
+                        quarterly_row[col] = row[col]
+                elif month == 'JUNIO':
+                    quarter = 'Q2'
+                    # Q2 = June accumulated - March accumulated
+                    march_data = year_data[year_data['Mes'] == 'MARZO']
+                    if not march_data.empty:
+                        for col in financial_cols:
+                            quarterly_row[col] = row[col] - march_data.iloc[0][col]
+                    else:
+                        for col in financial_cols:
+                            quarterly_row[col] = row[col]
+                elif month == 'SEPTIEMBRE':
+                    quarter = 'Q3'
+                    # Q3 = September accumulated - June accumulated
+                    june_data = year_data[year_data['Mes'] == 'JUNIO']
+                    if not june_data.empty:
+                        for col in financial_cols:
+                            quarterly_row[col] = row[col] - june_data.iloc[0][col]
+                    else:
+                        for col in financial_cols:
+                            quarterly_row[col] = row[col]
+                elif month == 'DICIEMBRE':
+                    quarter = 'Q4'
+                    # Q4 = December accumulated - September accumulated
+                    sept_data = year_data[year_data['Mes'] == 'SEPTIEMBRE']
+                    if not sept_data.empty:
+                        for col in financial_cols:
+                            quarterly_row[col] = row[col] - sept_data.iloc[0][col]
+                    else:
+                        # If no September, try June
+                        june_data = year_data[year_data['Mes'] == 'JUNIO']
+                        if not june_data.empty:
+                            for col in financial_cols:
+                                quarterly_row[col] = row[col] - june_data.iloc[0][col]
+                        else:
+                            # If no June, try March
+                            march_data = year_data[year_data['Mes'] == 'MARZO']
+                            if not march_data.empty:
+                                for col in financial_cols:
+                                    quarterly_row[col] = row[col] - march_data.iloc[0][col]
+                            else:
+                                for col in financial_cols:
+                                    quarterly_row[col] = row[col]
+                
+                quarterly_row['Quarter'] = quarter
+                quarterly_row['Periodo_Quarterly'] = f"{year} {quarter}"
+                quarterly_data.append(quarterly_row)
+    
+    return pd.DataFrame(quarterly_data)
+
+# Function to load and process data
 @st.cache_data
 def load_data():
     try:
-        sociedades = pd.read_excel('sociedades_estructurado.xlsx')
-        agencias = pd.read_excel('agencias_estructurado.xlsx')
+        # Load the new files with updated names
+        sociedades_raw = pd.read_excel('sociedades_de_valores_parsed.xlsx')
+        agencias_raw = pd.read_excel('agencias_de_valores_parsed.xlsx')
     except FileNotFoundError:
         try:
-            sociedades = pd.read_excel('./sociedades_estructurado.xlsx')
-            agencias = pd.read_excel('./agencias_estructurado.xlsx')
+            sociedades_raw = pd.read_excel('./sociedades_de_valores_parsed.xlsx')
+            agencias_raw = pd.read_excel('./agencias_de_valores_parsed.xlsx')
         except:
             st.error("No se encontraron los archivos de datos.")
             st.stop()
     
-    # Añadir columna tipo
+    # Convert accumulated data to quarterly
+    sociedades = accumulated_to_quarterly(sociedades_raw)
+    agencias = accumulated_to_quarterly(agencias_raw)
+    
+    # Rename columns to match the original app structure
+    column_mapping = {
+        'Denominación': 'entidad',
+        'Fondos_Propios_Miles_EUR': 'fondos_propios',
+        'Activos_Totales_Miles_EUR': 'activos_totales',
+        'Comisiones_Percibidas_Miles_EUR': 'comisiones_percibidas',
+        'Comisiones_Netas_Miles_EUR': 'comisiones_netas',
+        'Margen_Bruto_Miles_EUR': 'margen_bruto',
+        'Gastos_Explotación_Miles_EUR': 'gastos_explotacion',
+        'Resultados_Antes_Impuestos_Miles_EUR': 'resultados_antes_impuestos',
+        'Fecha': 'fecha',
+        'Periodo_Quarterly': 'periodo'
+    }
+    
+    sociedades = sociedades.rename(columns=column_mapping)
+    agencias = agencias.rename(columns=column_mapping)
+    
+    # Add type column
     sociedades['tipo'] = 'Sociedad'
     agencias['tipo'] = 'Agencia'
     
-    # Combinar datasets
-    combined = pd.concat([sociedades, agencias], ignore_index=True)
+    # Ensure fecha is datetime
+    sociedades['fecha'] = pd.to_datetime(sociedades['fecha'])
+    agencias['fecha'] = pd.to_datetime(agencias['fecha'])
     
-    # Convertir fecha a datetime
-    for df in [sociedades, agencias, combined]:
-        df['fecha'] = pd.to_datetime(df['fecha'])
+    # Combine datasets
+    combined = pd.concat([sociedades, agencias], ignore_index=True)
     
     return sociedades, agencias, combined
 
-# Calcular métricas trimestrales
+# Calculate quarterly metrics (same as original)
 def calculate_quarterly_metrics(df, entity):
     entity_data = df[df['entidad'] == entity].sort_values('fecha')
     
@@ -225,7 +338,7 @@ def calculate_quarterly_metrics(df, entity):
             'apalancamiento': (row['activos_totales'] / row['fondos_propios']) if row['fondos_propios'] > 0 else 0
         }
         
-        # Calcular cambios trimestre a trimestre
+        # Calculate quarter-to-quarter changes
         if i > 0:
             prev_row = entity_data.iloc[i-1]
             metrics_dict['var_activos'] = ((row['activos_totales'] - prev_row['activos_totales']) / prev_row['activos_totales'] * 100) if prev_row['activos_totales'] > 0 else 0
@@ -240,7 +353,7 @@ def calculate_quarterly_metrics(df, entity):
     
     return pd.DataFrame(metrics)
 
-# Tema oscuro profesional para plotly
+# Professional dark theme for plotly
 professional_theme = {
     'layout': {
         'paper_bgcolor': 'rgba(10, 10, 15, 0)',
@@ -261,19 +374,19 @@ professional_theme = {
     }
 }
 
-# Aplicación principal
+# Main application
 def main():
-    # Encabezado
+    # Header
     st.markdown('<h1 class="main-header">Panel de Análisis Financiero</h1>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">Sociedades de Valores y Agencias de Valores - Análisis Trimestral</p>', unsafe_allow_html=True)
     st.markdown('<p style="text-align: center; color: #4a5568; font-size: 12px; margin-bottom: 30px;">Desarrollado por @Gsnchez | bquantfinance.com</p>', unsafe_allow_html=True)
     
-    # Cargar datos directamente
+    # Load data
     with st.spinner('Cargando datos financieros...'):
         try:
             sociedades, agencias, combined = load_data()
             
-            # Mostrar información de datos cargados
+            # Show loaded data info
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric(label="📊 Total Registros", value=f"{len(combined):,}")
@@ -286,21 +399,21 @@ def main():
             st.error(f"Error al cargar los datos: {str(e)}")
             st.stop()
     
-    # Configuración en barra lateral
+    # Sidebar configuration
     with st.sidebar:
         st.markdown("## ⚙️ Panel de Control")
         
-        # Selector de empresa principal
+        # Main company selector
         st.markdown("### 🏢 Selección de Empresa")
         
-        # Filtro por tipo
+        # Filter by type
         tipo_filtro = st.radio(
             "Filtrar por tipo:",
             ["📊 Todas", "📈 Sociedades", "🏦 Agencias"],
             horizontal=True
         )
         
-        # Filtrar entidades según selección
+        # Filter entities by selection
         if tipo_filtro == "📈 Sociedades":
             filtered_combined = combined[combined['tipo'] == 'Sociedad']
         elif tipo_filtro == "🏦 Agencias":
@@ -310,14 +423,14 @@ def main():
         
         all_entities = sorted(filtered_combined['entidad'].unique())
         
-        # Empresa principal
+        # Main company
         selected_company = st.selectbox(
             "Empresa a analizar:",
             all_entities,
             index=0 if len(all_entities) > 0 else None
         )
         
-        # Obtener tipo de la empresa seleccionada
+        # Get company type
         if selected_company:
             company_type = filtered_combined[filtered_combined['entidad'] == selected_company]['tipo'].iloc[0]
         else:
@@ -325,7 +438,7 @@ def main():
         
         st.divider()
         
-        # Selector de período simplificado
+        # Period selector
         st.markdown("### 📅 Período")
         available_periods = sorted(combined['periodo'].unique())
         
@@ -342,12 +455,12 @@ def main():
             selected_periods = st.multiselect(
                 "Trimestres:",
                 available_periods,
-                default=available_periods[-2:] if len(available_periods) >= 2 else available_periods
+                default=available_periods[-4:] if len(available_periods) >= 4 else available_periods
             )
         
         st.divider()
         
-        # Comparación simplificada
+        # Comparison
         st.markdown("### 🔄 Comparación")
         enable_comparison = st.checkbox("Activar comparación", value=False)
         
@@ -365,7 +478,7 @@ def main():
                 )
                 
                 if comparison_mode == "Top 3 similares":
-                    # Seleccionar los 3 más similares en tamaño
+                    # Select 3 most similar by size
                     company_size = filtered_combined[
                         filtered_combined['entidad'] == selected_company
                     ]['activos_totales'].mean()
@@ -384,7 +497,7 @@ def main():
                         max_selections=5
                     )
         
-        # Resumen
+        # Summary
         st.divider()
         st.markdown("### 📊 Resumen")
         st.info(f"""
@@ -394,7 +507,7 @@ def main():
         **Comparando:** {len(comparison_companies)} empresas
         """)
     
-    # Filtrar datos
+    # Filter data
     company_data = combined[
         (combined['entidad'] == selected_company) & 
         (combined['periodo'].isin(selected_periods))
@@ -405,9 +518,9 @@ def main():
         (combined['periodo'].isin(selected_periods))
     ]
     
-    # Contenido principal
+    # Main content
     if not company_data.empty:
-        # Nombre de empresa y tipo
+        # Company name and type
         company_type = company_data.iloc[0]['tipo']
         badge_class = "type-badge-sociedad" if company_type == "Sociedad" else "type-badge-agencia"
         type_label = "SOCIEDAD DE VALORES" if company_type == "Sociedad" else "AGENCIA DE VALORES"
@@ -419,15 +532,15 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        # Calcular métricas trimestrales
+        # Calculate quarterly metrics
         quarterly_metrics = calculate_quarterly_metrics(combined, selected_company)
         
         if quarterly_metrics is not None and not quarterly_metrics.empty:
-            # KPIs del último trimestre
+            # KPIs from latest quarter
             latest = quarterly_metrics.iloc[-1]
             prev = quarterly_metrics.iloc[-2] if len(quarterly_metrics) > 1 else latest
             
-            # Tarjetas de KPI
+            # KPI cards
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -459,7 +572,7 @@ def main():
                     delta_color="inverse"
                 )
             
-            # Pestañas para diferentes vistas
+            # Tabs for different views
             tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
                 "📊 Rendimiento Trimestral", 
                 "📈 Análisis de Crecimiento", 
@@ -472,7 +585,7 @@ def main():
             with tab1:
                 st.markdown("### 📊 Desglose del Rendimiento Trimestre a Trimestre")
                 
-                # Gráfico integral de rendimiento
+                # Comprehensive performance chart
                 fig = make_subplots(
                     rows=2, cols=2,
                     subplot_titles=("Evolución de Ingresos y Beneficio", "Crecimiento de Activos y Patrimonio", 
@@ -483,7 +596,7 @@ def main():
                            [{'secondary_y': False}, {'secondary_y': False}]]
                 )
                 
-                # Ingresos y Beneficio
+                # Income and Profit
                 fig.add_trace(
                     go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['comisiones_percibidas'],
                           name='Comisiones', marker_color='#00d4ff', opacity=0.7,
@@ -498,7 +611,7 @@ def main():
                     row=1, col=1, secondary_y=True
                 )
                 
-                # Activos y Patrimonio
+                # Assets and Equity
                 fig.add_trace(
                     go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['activos_totales'],
                           name='Activos', marker_color='#4299e1', opacity=0.7),
@@ -511,7 +624,7 @@ def main():
                     row=1, col=2, secondary_y=True
                 )
                 
-                # Tasas de crecimiento
+                # Growth rates
                 if len(quarterly_metrics) > 1:
                     fig.add_trace(
                         go.Scatter(x=quarterly_metrics['periodo'][1:], y=quarterly_metrics['var_ingresos'][1:],
@@ -526,7 +639,7 @@ def main():
                         row=2, col=1
                     )
                 
-                # Márgenes
+                # Margins
                 fig.add_trace(
                     go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['margen_neto'],
                               name='Margen Neto', line=dict(color='#ed8936', width=2),
@@ -534,7 +647,7 @@ def main():
                     row=2, col=2
                 )
                 
-                # Actualizar diseño
+                # Update layout
                 fig.update_layout(**professional_theme['layout'], height=700, showlegend=True)
                 fig.update_yaxes(title_text="Importe (€K)", row=1, col=1, secondary_y=False)
                 fig.update_yaxes(title_text="Beneficio (€K)", row=1, col=1, secondary_y=True)
@@ -545,7 +658,7 @@ def main():
                 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Tabla resumen
+                # Summary table
                 st.markdown("### 📋 Resumen de Rendimiento")
                 summary_df = quarterly_metrics[['periodo', 'comisiones_percibidas', 'resultados_antes_impuestos', 
                                                'ROA', 'ROE', 'ratio_eficiencia']].round(2)
@@ -563,7 +676,7 @@ def main():
                     horizontal_spacing=0.10
                 )
                 
-                # Crecimiento acumulado
+                # Accumulated growth
                 quarterly_metrics['cum_ingresos'] = quarterly_metrics['comisiones_percibidas'].cumsum()
                 quarterly_metrics['cum_beneficio'] = quarterly_metrics['resultados_antes_impuestos'].cumsum()
                 
@@ -581,7 +694,7 @@ def main():
                     row=1, col=1
                 )
                 
-                # Rendimiento indexado
+                # Indexed performance
                 if len(quarterly_metrics) > 0:
                     base_revenue = quarterly_metrics['comisiones_percibidas'].iloc[0]
                     base_assets = quarterly_metrics['activos_totales'].iloc[0]
@@ -603,17 +716,17 @@ def main():
                         row=1, col=2
                     )
                     
-                    # Línea base 100
+                    # Base line 100
                     fig_growth.add_hline(y=100, line_width=1, line_dash="dot", line_color="gray", row=1, col=2)
                 
-                # Evolución trimestral
+                # Quarterly evolution
                 fig_growth.add_trace(
                     go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['comisiones_percibidas'],
                           name='Comisiones', marker_color='#00d4ff', opacity=0.6),
                     row=2, col=1
                 )
                 
-                # Variación porcentual
+                # Percentage variation
                 if len(quarterly_metrics) > 1:
                     colors = ['#48bb78' if x > 0 else '#ff3366' for x in quarterly_metrics['var_ingresos'][1:]]
                     
@@ -626,7 +739,7 @@ def main():
                 fig_growth.update_layout(**professional_theme['layout'], height=700, showlegend=True)
                 st.plotly_chart(fig_growth, use_container_width=True)
                 
-                # Métricas de crecimiento
+                # Growth metrics
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
@@ -670,7 +783,7 @@ def main():
                     row=1, col=1
                 )
                 
-                # Ratio Coste-Ingreso
+                # Cost-Income Ratio
                 fig_eff.add_trace(
                     go.Bar(x=quarterly_metrics['periodo'], y=quarterly_metrics['ratio_eficiencia'],
                           name='Coste/Ingreso', marker_color='#ed8936', opacity=0.7,
@@ -679,7 +792,7 @@ def main():
                     row=1, col=2
                 )
                 
-                # Apalancamiento
+                # Leverage
                 fig_eff.add_trace(
                     go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['apalancamiento'],
                               name='Apalancamiento', line=dict(color='#9f7aea', width=3),
@@ -687,7 +800,7 @@ def main():
                     row=2, col=1
                 )
                 
-                # Margen neto
+                # Net margin
                 fig_eff.add_trace(
                     go.Scatter(x=quarterly_metrics['periodo'], y=quarterly_metrics['margen_neto'],
                               name='Margen Neto', line=dict(color='#48bb78', width=3),
@@ -699,7 +812,7 @@ def main():
                 fig_eff.update_layout(**professional_theme['layout'], height=700, showlegend=True)
                 st.plotly_chart(fig_eff, use_container_width=True)
                 
-                # Indicadores clave
+                # Key indicators
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
@@ -715,7 +828,7 @@ def main():
                 st.markdown("### 🏆 Análisis Comparativo con Competidores")
                 
                 if comparison_companies and not comparison_data.empty:
-                    # Preparar datos de comparación
+                    # Prepare comparison data
                     peer_metrics = []
                     for comp in comparison_companies:
                         comp_metrics = calculate_quarterly_metrics(combined, comp)
@@ -730,7 +843,7 @@ def main():
                                 'Eficiencia': latest_comp['ratio_eficiencia']
                             })
                     
-                    # Añadir empresa seleccionada
+                    # Add selected company
                     peer_metrics.append({
                         'Empresa': selected_company,
                         'Ingresos': latest['comisiones_percibidas'],
@@ -742,7 +855,7 @@ def main():
                     
                     peer_df = pd.DataFrame(peer_metrics)
                     
-                    # Gráfico de barras comparativo
+                    # Comparative bar chart
                     fig_comp = go.Figure()
                     
                     metrics_to_plot = ['Ingresos', 'Beneficio', 'ROA', 'ROE']
@@ -764,7 +877,7 @@ def main():
                     
                     st.plotly_chart(fig_comp, use_container_width=True)
                     
-                    # Tabla comparativa
+                    # Comparison table
                     st.markdown("### 📊 Tabla Comparativa")
                     peer_df_display = peer_df.round(2).sort_values('ROE', ascending=False)
                     st.dataframe(peer_df_display, use_container_width=True)
@@ -774,12 +887,12 @@ def main():
             with tab5:
                 st.markdown("### ⚖️ Comparación entre Sociedades y Agencias de Valores")
                 
-                # Separar datos por tipo
+                # Separate data by type
                 sociedades_data = combined[combined['tipo'] == 'Sociedad']
                 agencias_data = combined[combined['tipo'] == 'Agencia']
                 
                 if len(sociedades_data) > 0 and len(agencias_data) > 0:
-                    # Calcular métricas promedio por tipo y período
+                    # Calculate average metrics by type and period
                     sociedades_avg = sociedades_data.groupby('periodo').agg({
                         'comisiones_percibidas': 'mean',
                         'resultados_antes_impuestos': 'mean',
@@ -798,7 +911,7 @@ def main():
                         'margen_bruto': 'mean'
                     }).round(0)
                     
-                    # Gráfico comparativo
+                    # Comparative chart
                     fig_comp = make_subplots(
                         rows=2, cols=2,
                         subplot_titles=("Ingresos Promedio por Tipo", "Rentabilidad Promedio", 
@@ -807,7 +920,7 @@ def main():
                         horizontal_spacing=0.10
                     )
                     
-                    # Ingresos promedio
+                    # Average income
                     fig_comp.add_trace(
                         go.Scatter(x=sociedades_avg.index, y=sociedades_avg['comisiones_percibidas'],
                                   name='Sociedades', line=dict(color='#b794f6', width=3),
@@ -821,7 +934,7 @@ def main():
                         row=1, col=1
                     )
                     
-                    # Rentabilidad
+                    # Profitability
                     fig_comp.add_trace(
                         go.Bar(x=sociedades_avg.index, y=sociedades_avg['resultados_antes_impuestos'],
                               name='Sociedades', marker_color='#b794f6', opacity=0.7),
@@ -833,7 +946,7 @@ def main():
                         row=1, col=2
                     )
                     
-                    # Activos
+                    # Assets
                     fig_comp.add_trace(
                         go.Scatter(x=sociedades_avg.index, y=sociedades_avg['activos_totales'],
                                   name='Sociedades', line=dict(color='#b794f6', width=3),
@@ -847,7 +960,7 @@ def main():
                         row=2, col=1
                     )
                     
-                    # Eficiencia
+                    # Efficiency
                     if len(sociedades_avg) > 0:
                         sociedades_avg['eficiencia'] = (sociedades_avg['gastos_explotacion'] / 
                                                        sociedades_avg['margen_bruto'] * 100).fillna(0)
@@ -875,7 +988,7 @@ def main():
                     
                     st.plotly_chart(fig_comp, use_container_width=True)
                     
-                    # Estadísticas comparativas
+                    # Comparative statistics
                     st.markdown("### 📊 Estadísticas Comparativas: Sociedades vs Agencias")
                     
                     col1, col2 = st.columns(2)
@@ -897,7 +1010,7 @@ def main():
             with tab6:
                 st.markdown("### 📉 Evaluación de Salud Financiera")
                 
-                # Calcular componentes de salud
+                # Calculate health components
                 health_components = {
                     'Rentabilidad': min(100, (latest['ROE'] / 20 * 100)),
                     'Calidad de Activos': min(100, (latest['ROA'] / 10 * 100)),
@@ -908,7 +1021,7 @@ def main():
                 
                 overall_health = sum(health_components.values()) / len(health_components)
                 
-                # Gauge de salud financiera
+                # Financial health gauge
                 fig_health = go.Figure(go.Indicator(
                     mode = "gauge+number",
                     value = overall_health,
@@ -934,7 +1047,7 @@ def main():
                 fig_health.update_layout(**professional_theme['layout'], height=400)
                 st.plotly_chart(fig_health, use_container_width=True)
                 
-                # Componentes de salud
+                # Health components
                 st.markdown("### 🎯 Componentes de la Puntuación")
                 cols = st.columns(5)
                 for idx, (component, score) in enumerate(health_components.items()):
@@ -942,7 +1055,7 @@ def main():
                         color = "#48bb78" if score >= 70 else "#ed8936" if score >= 40 else "#ff3366"
                         st.metric(component, f"{score:.0f}/100")
         
-        # Opciones de exportación
+        # Export options
         st.divider()
         st.markdown("### 💾 Opciones de Exportación")
         
@@ -990,7 +1103,7 @@ Puntuación Global: {overall_health:.1f}/100
                 mime="text/csv"
             )
     
-    # Pie de página
+    # Footer
     st.divider()
     st.markdown("""
         <div style='text-align: center; padding: 20px;'>
