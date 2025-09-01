@@ -170,6 +170,23 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# Function to clean and standardize entity names
+def clean_entity_name(name):
+    """Clean and standardize entity names to avoid duplicates"""
+    if pd.isna(name):
+        return None
+    # Convert to string and strip spaces
+    name = str(name).strip()
+    # Remove multiple spaces
+    name = ' '.join(name.split())
+    # Standardize common abbreviations
+    name = name.replace('S.V.', 'S.V.')
+    name = name.replace('A.V.', 'A.V.')
+    name = name.replace('S.A.', 'S.A.')
+    # Remove trailing dots and commas
+    name = name.rstrip('.,')
+    return name
+
 # Function to convert YTD (Year-to-Date) accumulated data to quarterly
 def accumulated_to_quarterly(df):
     """Convert YTD accumulated data to quarterly data
@@ -182,11 +199,20 @@ def accumulated_to_quarterly(df):
     
     We need to convert to individual quarterly data.
     """
+    # First, clean entity names
+    df['Denominación'] = df['Denominación'].apply(clean_entity_name)
+    
+    # Remove rows where entity name is None
+    df = df[df['Denominación'].notna()]
+    
     df = df.sort_values(['Denominación', 'Año', 'Fecha'])
     
     quarterly_data = []
     
     for entity in df['Denominación'].unique():
+        if not entity:  # Skip empty entity names
+            continue
+            
         entity_data = df[df['Denominación'] == entity].copy()
         
         for year in entity_data['Año'].unique():
@@ -318,36 +344,65 @@ def load_data():
     sociedades = sociedades.rename(columns=column_mapping)
     agencias = agencias.rename(columns=column_mapping)
     
-    # Remove duplicates based on entity, period, and date
-    sociedades = sociedades.drop_duplicates(subset=['entidad', 'periodo', 'fecha'], keep='first')
-    agencias = agencias.drop_duplicates(subset=['entidad', 'periodo', 'fecha'], keep='first')
+    # Clean entity names to avoid variations
+    sociedades['entidad'] = sociedades['entidad'].apply(clean_entity_name)
+    agencias['entidad'] = agencias['entidad'].apply(clean_entity_name)
+    
+    # Remove rows with null entity names
+    sociedades = sociedades[sociedades['entidad'].notna()]
+    agencias = agencias[agencias['entidad'].notna()]
+    
+    # Function to consolidate duplicate entities (keep the one with most data)
+    def consolidate_duplicates(df):
+        # Calculate a "data quality score" for each entity
+        df['data_score'] = (
+            (df['comisiones_percibidas'].abs() > 0).astype(int) * 3 +  # Revenue is most important
+            (df['activos_totales'].abs() > 0).astype(int) * 2 +
+            (df['fondos_propios'].abs() > 0).astype(int) +
+            (df['resultados_antes_impuestos'].notna()).astype(int)
+        )
+        
+        # For each entity-period combination, keep only the row with highest data score
+        df = df.sort_values(['entidad', 'periodo', 'data_score'], ascending=[True, True, False])
+        df = df.drop_duplicates(subset=['entidad', 'periodo'], keep='first')
+        df = df.drop('data_score', axis=1)
+        
+        return df
+    
+    # Consolidate duplicates
+    sociedades = consolidate_duplicates(sociedades)
+    agencias = consolidate_duplicates(agencias)
     
     # Filter out entities with no meaningful data
-    # More aggressive filtering: require positive values in key metrics
     def filter_empty_entities(df):
         # Group by entity and check if they have any real activity
         entity_stats = df.groupby('entidad').agg({
-            'comisiones_percibidas': ['sum', 'max', 'count'],
-            'activos_totales': ['sum', 'max'],
-            'fondos_propios': ['sum', 'max'],
-            'resultados_antes_impuestos': 'sum'
+            'comisiones_percibidas': ['sum', 'max', 'mean', 'count'],
+            'activos_totales': ['sum', 'max', 'mean'],
+            'fondos_propios': ['sum', 'max', 'mean'],
+            'resultados_antes_impuestos': ['sum', 'count']
         })
         
         # Flatten column names
         entity_stats.columns = ['_'.join(col).strip() for col in entity_stats.columns.values]
         
         # Filter entities that have:
-        # 1. At least some positive revenue (comisiones) at some point
-        # 2. At least some assets
-        # 3. More than just one data point
+        # 1. Meaningful revenue at any point
+        # 2. OR meaningful assets
+        # 3. AND more than just one quarter of data
+        # 4. AND not all zeros
         valid_entities = entity_stats[
-            (entity_stats['comisiones_percibidas_max'] > 0) |  # Has had revenue
-            (entity_stats['activos_totales_max'] > 100) |      # Has meaningful assets (>100K EUR)
-            (entity_stats['fondos_propios_max'] > 100)         # Has meaningful equity
+            (
+                (entity_stats['comisiones_percibidas_max'] > 10) |  # Has had at least 10K revenue
+                (entity_stats['activos_totales_max'] > 100)         # Has at least 100K assets
+            ) &
+            (entity_stats['comisiones_percibidas_count'] >= 2) &    # At least 2 quarters
+            (
+                (entity_stats['comisiones_percibidas_sum'].abs() > 0) |
+                (entity_stats['activos_totales_sum'] > 0) |
+                (entity_stats['fondos_propios_sum'] != 0)
+            )
         ]
-        
-        # Additional filter: remove entities with too few data points
-        valid_entities = valid_entities[valid_entities['comisiones_percibidas_count'] >= 2]
         
         return df[df['entidad'].isin(valid_entities.index)]
     
@@ -355,9 +410,31 @@ def load_data():
     sociedades = filter_empty_entities(sociedades)
     agencias = filter_empty_entities(agencias)
     
-    # Clean entity names (remove extra spaces, standardize)
-    sociedades['entidad'] = sociedades['entidad'].str.strip()
-    agencias['entidad'] = agencias['entidad'].str.strip()
+    # Handle any potential variations of the same company name
+    # Group similar names and keep the most common/complete version
+    def standardize_similar_names(df):
+        # Create a mapping of potentially similar names
+        entities = df['entidad'].unique()
+        name_mapping = {}
+        
+        for entity in entities:
+            # Check for entities that are substrings of each other
+            base_name = entity.replace(',', '').replace('.', '').upper()
+            
+            # Find the "best" version (usually the longest/most complete)
+            for other in entities:
+                other_base = other.replace(',', '').replace('.', '').upper()
+                if base_name in other_base and len(other) > len(entity):
+                    name_mapping[entity] = other
+                    break
+        
+        # Apply mapping
+        df['entidad'] = df['entidad'].replace(name_mapping)
+        
+        return df
+    
+    sociedades = standardize_similar_names(sociedades)
+    agencias = standardize_similar_names(agencias)
     
     # Remove any remaining NaN or infinite values in key columns
     key_cols = ['comisiones_percibidas', 'activos_totales', 'fondos_propios', 
@@ -386,6 +463,9 @@ def load_data():
     entity_types = combined.groupby('entidad')['tipo'].nunique()
     consistent_entities = entity_types[entity_types == 1].index
     combined = combined[combined['entidad'].isin(consistent_entities)]
+    
+    # Final duplicate check after combination
+    combined = consolidate_duplicates(combined)
     
     return sociedades, agencias, combined
 
@@ -482,19 +562,8 @@ def main():
     with st.sidebar:
         st.markdown("### 🎯 Análisis de Empresa")
         
-        # Combined company selector with type indicator
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            all_entities = sorted(combined['entidad'].unique())
-            selected_company = st.selectbox(
-                "Seleccionar empresa",
-                all_entities,
-                index=0 if len(all_entities) > 0 else None,
-                label_visibility="collapsed"
-            )
-        
-        with col2:
-            tipo_filter = st.checkbox("🔍", help="Filtrar por tipo de entidad")
+        # Type filter checkbox
+        tipo_filter = st.checkbox("🔍 Filtrar por tipo", help="Filtrar empresas por tipo de entidad")
         
         # Show filter only if checkbox is selected
         if tipo_filter:
@@ -506,17 +575,21 @@ def main():
             )
             
             if tipo_filtro == "Sociedades":
-                filtered_combined = combined[combined['tipo'] == 'Sociedad']
+                filtered_entities = sorted(combined[combined['tipo'] == 'Sociedad']['entidad'].unique())
             elif tipo_filtro == "Agencias":
-                filtered_combined = combined[combined['tipo'] == 'Agencia']
+                filtered_entities = sorted(combined[combined['tipo'] == 'Agencia']['entidad'].unique())
             else:
-                filtered_combined = combined
-                
-            filtered_entities = sorted(filtered_combined['entidad'].unique())
-            if selected_company not in filtered_entities and len(filtered_entities) > 0:
-                selected_company = filtered_entities[0]
+                filtered_entities = sorted(combined['entidad'].unique())
         else:
-            filtered_combined = combined
+            filtered_entities = sorted(combined['entidad'].unique())
+        
+        # Company selector - now properly filtered
+        selected_company = st.selectbox(
+            "Empresa",
+            filtered_entities,
+            index=0 if len(filtered_entities) > 0 else None,
+            label_visibility="collapsed"
+        )
         
         # Get company type and show badge
         if selected_company:
@@ -530,12 +603,9 @@ def main():
         
         st.markdown("---")
         
-        # Simplified period selector
+        # Period selector
         st.markdown("### 📅 Período de Análisis")
         available_periods = sorted(combined['periodo'].unique())
-        
-        # Default to last 4 quarters
-        default_periods = available_periods[-4:] if len(available_periods) >= 4 else available_periods
         
         period_mode = st.selectbox(
             "Seleccionar período",
@@ -553,53 +623,67 @@ def main():
             selected_periods = st.multiselect(
                 "Seleccionar trimestres:",
                 available_periods,
-                default=default_periods
+                default=available_periods[-4:] if len(available_periods) >= 4 else available_periods
             )
         
         st.caption(f"📊 {len(selected_periods)} trimestres seleccionados")
         
         st.markdown("---")
         
+        # Comparison section - initialize comparison_companies first
+        comparison_companies = []
+        
         # Streamlined comparison with expander
         with st.expander("🔄 **Comparación con Competidores**", expanded=False):
-            comparison_companies = []
-            
             if company_type and selected_company:
-                comparison_entities = list(filtered_combined[
-                    (filtered_combined['tipo'] == company_type) & 
-                    (filtered_combined['entidad'] != selected_company)
-                ]['entidad'].unique())
+                # Get entities of same type, excluding selected company
+                same_type_entities = combined[
+                    (combined['tipo'] == company_type) & 
+                    (combined['entidad'] != selected_company)
+                ]['entidad'].unique()
                 
-                if len(comparison_entities) > 0:
-                    # Auto-select top 3 similar by default
-                    company_size = filtered_combined[
-                        filtered_combined['entidad'] == selected_company
-                    ]['activos_totales'].mean()
-                    
-                    sizes = filtered_combined[
-                        filtered_combined['entidad'].isin(comparison_entities)
-                    ].groupby('entidad')['activos_totales'].mean().reset_index()
-                    
-                    sizes['diff'] = abs(sizes['activos_totales'] - company_size)
-                    top3 = sizes.nsmallest(3, 'diff')['entidad'].tolist()
-                    
-                    use_auto = st.checkbox("Usar Top 3 similares", value=True)
-                    
-                    if use_auto:
-                        comparison_companies = top3
-                        st.caption(f"Comparando con: {', '.join([c[:20] + '...' if len(c) > 20 else c for c in comparison_companies])}")
-                    else:
-                        comparison_companies = st.multiselect(
-                            "Seleccionar manualmente:",
-                            comparison_entities,
-                            max_selections=5
-                        )
+                if len(same_type_entities) > 0:
+                    # Calculate similar companies by size
+                    company_data = combined[combined['entidad'] == selected_company]
+                    if not company_data.empty:
+                        company_size = company_data['activos_totales'].mean()
+                        
+                        # Get size data for all companies of same type
+                        size_data = []
+                        for entity in same_type_entities:
+                            entity_data = combined[combined['entidad'] == entity]
+                            if not entity_data.empty:
+                                avg_size = entity_data['activos_totales'].mean()
+                                size_data.append({
+                                    'entidad': entity,
+                                    'size': avg_size,
+                                    'diff': abs(avg_size - company_size)
+                                })
+                        
+                        if size_data:
+                            # Sort by similarity (smallest difference)
+                            size_df = pd.DataFrame(size_data).sort_values('diff')
+                            top3 = size_df.head(3)['entidad'].tolist()
+                            
+                            use_auto = st.checkbox("Usar Top 3 similares", value=True)
+                            
+                            if use_auto:
+                                comparison_companies = top3
+                                st.caption(f"Comparando con: {', '.join([c[:20] + '...' if len(c) > 20 else c for c in comparison_companies])}")
+                            else:
+                                comparison_companies = st.multiselect(
+                                    "Seleccionar manualmente:",
+                                    list(same_type_entities),
+                                    max_selections=5
+                                )
+                        else:
+                            st.warning("No hay suficientes datos para comparar")
                 else:
-                    st.warning("No hay empresas del mismo tipo para comparar")
+                    st.warning("No hay otras empresas del mismo tipo")
             else:
                 st.info("Selecciona una empresa para activar comparación")
         
-        # Enable comparison flag based on expander state
+        # Enable comparison flag
         enable_comparison = len(comparison_companies) > 0
         
         # Compact summary at bottom
