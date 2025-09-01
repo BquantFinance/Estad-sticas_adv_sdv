@@ -318,27 +318,58 @@ def load_data():
     sociedades = sociedades.rename(columns=column_mapping)
     agencias = agencias.rename(columns=column_mapping)
     
+    # Remove duplicates based on entity, period, and date
+    sociedades = sociedades.drop_duplicates(subset=['entidad', 'periodo', 'fecha'], keep='first')
+    agencias = agencias.drop_duplicates(subset=['entidad', 'periodo', 'fecha'], keep='first')
+    
     # Filter out entities with no meaningful data
-    # Check key financial metrics to determine if entity has real data
-    key_metrics = ['comisiones_percibidas', 'activos_totales', 'fondos_propios']
+    # More aggressive filtering: require positive values in key metrics
+    def filter_empty_entities(df):
+        # Group by entity and check if they have any real activity
+        entity_stats = df.groupby('entidad').agg({
+            'comisiones_percibidas': ['sum', 'max', 'count'],
+            'activos_totales': ['sum', 'max'],
+            'fondos_propios': ['sum', 'max'],
+            'resultados_antes_impuestos': 'sum'
+        })
+        
+        # Flatten column names
+        entity_stats.columns = ['_'.join(col).strip() for col in entity_stats.columns.values]
+        
+        # Filter entities that have:
+        # 1. At least some positive revenue (comisiones) at some point
+        # 2. At least some assets
+        # 3. More than just one data point
+        valid_entities = entity_stats[
+            (entity_stats['comisiones_percibidas_max'] > 0) |  # Has had revenue
+            (entity_stats['activos_totales_max'] > 100) |      # Has meaningful assets (>100K EUR)
+            (entity_stats['fondos_propios_max'] > 100)         # Has meaningful equity
+        ]
+        
+        # Additional filter: remove entities with too few data points
+        valid_entities = valid_entities[valid_entities['comisiones_percibidas_count'] >= 2]
+        
+        return df[df['entidad'].isin(valid_entities.index)]
     
-    # For sociedades
-    sociedades_grouped = sociedades.groupby('entidad')[key_metrics].sum()
-    valid_sociedades = sociedades_grouped[
-        (sociedades_grouped['comisiones_percibidas'] != 0) | 
-        (sociedades_grouped['activos_totales'] != 0) |
-        (sociedades_grouped['fondos_propios'] != 0)
-    ].index
-    sociedades = sociedades[sociedades['entidad'].isin(valid_sociedades)]
+    # Apply filtering
+    sociedades = filter_empty_entities(sociedades)
+    agencias = filter_empty_entities(agencias)
     
-    # For agencias
-    agencias_grouped = agencias.groupby('entidad')[key_metrics].sum()
-    valid_agencias = agencias_grouped[
-        (agencias_grouped['comisiones_percibidas'] != 0) | 
-        (agencias_grouped['activos_totales'] != 0) |
-        (agencias_grouped['fondos_propios'] != 0)
-    ].index
-    agencias = agencias[agencias['entidad'].isin(valid_agencias)]
+    # Clean entity names (remove extra spaces, standardize)
+    sociedades['entidad'] = sociedades['entidad'].str.strip()
+    agencias['entidad'] = agencias['entidad'].str.strip()
+    
+    # Remove any remaining NaN or infinite values in key columns
+    key_cols = ['comisiones_percibidas', 'activos_totales', 'fondos_propios', 
+                'gastos_explotacion', 'resultados_antes_impuestos', 'margen_bruto', 'comisiones_netas']
+    
+    for col in key_cols:
+        if col in sociedades.columns:
+            sociedades[col] = sociedades[col].fillna(0)
+            sociedades = sociedades[~sociedades[col].isin([float('inf'), float('-inf')])]
+        if col in agencias.columns:
+            agencias[col] = agencias[col].fillna(0)
+            agencias = agencias[~agencias[col].isin([float('inf'), float('-inf')])]
     
     # Add type column
     sociedades['tipo'] = 'Sociedad'
@@ -350,6 +381,11 @@ def load_data():
     
     # Combine datasets
     combined = pd.concat([sociedades, agencias], ignore_index=True)
+    
+    # Final check: remove any entity that appears with inconsistent type
+    entity_types = combined.groupby('entidad')['tipo'].nunique()
+    consistent_entities = entity_types[entity_types == 1].index
+    combined = combined[combined['entidad'].isin(consistent_entities)]
     
     return sociedades, agencias, combined
 
