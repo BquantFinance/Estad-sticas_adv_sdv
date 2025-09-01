@@ -170,9 +170,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Function to convert accumulated data to quarterly
+# Function to convert YTD (Year-to-Date) accumulated data to quarterly
 def accumulated_to_quarterly(df):
-    """Convert accumulated data to quarterly data"""
+    """Convert YTD accumulated data to quarterly data
+    
+    The data comes in YTD format:
+    - MARZO: Q1 data (3 months: Jan-Mar)
+    - JUNIO: YTD through Q2 (6 months: Jan-Jun)
+    - SEPTIEMBRE: YTD through Q3 (9 months: Jan-Sep)
+    - DICIEMBRE: YTD through Q4 (12 months: Jan-Dec)
+    
+    We need to convert to individual quarterly data.
+    """
     df = df.sort_values(['Denominación', 'Año', 'Fecha'])
     
     quarterly_data = []
@@ -186,8 +195,8 @@ def accumulated_to_quarterly(df):
             if len(year_data) == 0:
                 continue
             
-            # Financial columns that need to be converted from accumulated to quarterly
-            financial_cols = [
+            # Income statement columns that are accumulated YTD (need conversion)
+            ytd_cols = [
                 'Comisiones_Percibidas_Miles_EUR',
                 'Comisiones_Netas_Miles_EUR',
                 'Margen_Bruto_Miles_EUR',
@@ -195,65 +204,77 @@ def accumulated_to_quarterly(df):
                 'Resultados_Antes_Impuestos_Miles_EUR'
             ]
             
-            # Balance sheet columns that are not accumulated
+            # Balance sheet columns (point-in-time, not accumulated)
             balance_cols = [
                 'Fondos_Propios_Miles_EUR',
                 'Activos_Totales_Miles_EUR'
             ]
             
-            prev_row = None
-            for idx, row in year_data.iterrows():
+            # Create a dictionary to store YTD values by month for easy access
+            ytd_values = {}
+            for _, row in year_data.iterrows():
+                ytd_values[row['Mes']] = row
+            
+            # Process each quarter
+            for mes in ['MARZO', 'JUNIO', 'SEPTIEMBRE', 'DICIEMBRE']:
+                if mes not in ytd_values:
+                    continue
+                    
+                row = ytd_values[mes]
                 quarterly_row = row.copy()
                 
-                # Determine quarter based on month
-                month = row['Mes']
-                if month == 'MARZO':
+                # Determine quarter and calculate quarterly values
+                if mes == 'MARZO':
                     quarter = 'Q1'
-                    # Q1 values are already quarterly (no previous quarter in the year)
-                    for col in financial_cols:
+                    # Q1 values are already quarterly (first 3 months)
+                    for col in ytd_cols:
                         quarterly_row[col] = row[col]
-                elif month == 'JUNIO':
+                        
+                elif mes == 'JUNIO':
                     quarter = 'Q2'
-                    # Q2 = June accumulated - March accumulated
-                    march_data = year_data[year_data['Mes'] == 'MARZO']
-                    if not march_data.empty:
-                        for col in financial_cols:
-                            quarterly_row[col] = row[col] - march_data.iloc[0][col]
+                    # Q2 = YTD June (6 months) - YTD March (3 months)
+                    if 'MARZO' in ytd_values:
+                        for col in ytd_cols:
+                            quarterly_row[col] = row[col] - ytd_values['MARZO'][col]
                     else:
-                        for col in financial_cols:
-                            quarterly_row[col] = row[col]
-                elif month == 'SEPTIEMBRE':
+                        # If no March data, June YTD represents Q1+Q2
+                        # We can't accurately separate, so we'll use half as estimate
+                        for col in ytd_cols:
+                            quarterly_row[col] = row[col] / 2
+                            
+                elif mes == 'SEPTIEMBRE':
                     quarter = 'Q3'
-                    # Q3 = September accumulated - June accumulated
-                    june_data = year_data[year_data['Mes'] == 'JUNIO']
-                    if not june_data.empty:
-                        for col in financial_cols:
-                            quarterly_row[col] = row[col] - june_data.iloc[0][col]
+                    # Q3 = YTD September (9 months) - YTD June (6 months)
+                    if 'JUNIO' in ytd_values:
+                        for col in ytd_cols:
+                            quarterly_row[col] = row[col] - ytd_values['JUNIO'][col]
                     else:
-                        for col in financial_cols:
-                            quarterly_row[col] = row[col]
-                elif month == 'DICIEMBRE':
+                        # Fallback: estimate Q3 as 1/3 of YTD September
+                        for col in ytd_cols:
+                            quarterly_row[col] = row[col] / 3
+                            
+                elif mes == 'DICIEMBRE':
                     quarter = 'Q4'
-                    # Q4 = December accumulated - September accumulated
-                    sept_data = year_data[year_data['Mes'] == 'SEPTIEMBRE']
-                    if not sept_data.empty:
-                        for col in financial_cols:
-                            quarterly_row[col] = row[col] - sept_data.iloc[0][col]
+                    # Q4 = YTD December (12 months) - YTD September (9 months)
+                    if 'SEPTIEMBRE' in ytd_values:
+                        for col in ytd_cols:
+                            quarterly_row[col] = row[col] - ytd_values['SEPTIEMBRE'][col]
+                    elif 'JUNIO' in ytd_values:
+                        # If no September, use June: Q4+Q3 = Dec - June
+                        for col in ytd_cols:
+                            quarterly_row[col] = (row[col] - ytd_values['JUNIO'][col]) / 2
+                    elif 'MARZO' in ytd_values:
+                        # If only March available: Q4+Q3+Q2 = Dec - March
+                        for col in ytd_cols:
+                            quarterly_row[col] = (row[col] - ytd_values['MARZO'][col]) / 3
                     else:
-                        # If no September, try June
-                        june_data = year_data[year_data['Mes'] == 'JUNIO']
-                        if not june_data.empty:
-                            for col in financial_cols:
-                                quarterly_row[col] = row[col] - june_data.iloc[0][col]
-                        else:
-                            # If no June, try March
-                            march_data = year_data[year_data['Mes'] == 'MARZO']
-                            if not march_data.empty:
-                                for col in financial_cols:
-                                    quarterly_row[col] = row[col] - march_data.iloc[0][col]
-                            else:
-                                for col in financial_cols:
-                                    quarterly_row[col] = row[col]
+                        # Only December data: estimate Q4 as 1/4 of total
+                        for col in ytd_cols:
+                            quarterly_row[col] = row[col] / 4
+                
+                # Balance sheet items remain as-is (point in time values)
+                for col in balance_cols:
+                    quarterly_row[col] = row[col]
                 
                 quarterly_row['Quarter'] = quarter
                 quarterly_row['Periodo_Quarterly'] = f"{year} {quarter}"
@@ -296,6 +317,28 @@ def load_data():
     
     sociedades = sociedades.rename(columns=column_mapping)
     agencias = agencias.rename(columns=column_mapping)
+    
+    # Filter out entities with no meaningful data
+    # Check key financial metrics to determine if entity has real data
+    key_metrics = ['comisiones_percibidas', 'activos_totales', 'fondos_propios']
+    
+    # For sociedades
+    sociedades_grouped = sociedades.groupby('entidad')[key_metrics].sum()
+    valid_sociedades = sociedades_grouped[
+        (sociedades_grouped['comisiones_percibidas'] != 0) | 
+        (sociedades_grouped['activos_totales'] != 0) |
+        (sociedades_grouped['fondos_propios'] != 0)
+    ].index
+    sociedades = sociedades[sociedades['entidad'].isin(valid_sociedades)]
+    
+    # For agencias
+    agencias_grouped = agencias.groupby('entidad')[key_metrics].sum()
+    valid_agencias = agencias_grouped[
+        (agencias_grouped['comisiones_percibidas'] != 0) | 
+        (agencias_grouped['activos_totales'] != 0) |
+        (agencias_grouped['fondos_propios'] != 0)
+    ].index
+    agencias = agencias[agencias['entidad'].isin(valid_agencias)]
     
     # Add type column
     sociedades['tipo'] = 'Sociedad'
@@ -401,84 +444,98 @@ def main():
     
     # Sidebar configuration
     with st.sidebar:
-        st.markdown("## ⚙️ Panel de Control")
+        st.markdown("### 🎯 Análisis de Empresa")
         
-        # Main company selector
-        st.markdown("### 🏢 Selección de Empresa")
+        # Combined company selector with type indicator
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            all_entities = sorted(combined['entidad'].unique())
+            selected_company = st.selectbox(
+                "Seleccionar empresa",
+                all_entities,
+                index=0 if len(all_entities) > 0 else None,
+                label_visibility="collapsed"
+            )
         
-        # Filter by type
-        tipo_filtro = st.radio(
-            "Filtrar por tipo:",
-            ["📊 Todas", "📈 Sociedades", "🏦 Agencias"],
-            horizontal=True
-        )
+        with col2:
+            tipo_filter = st.checkbox("🔍", help="Filtrar por tipo de entidad")
         
-        # Filter entities by selection
-        if tipo_filtro == "📈 Sociedades":
-            filtered_combined = combined[combined['tipo'] == 'Sociedad']
-        elif tipo_filtro == "🏦 Agencias":
-            filtered_combined = combined[combined['tipo'] == 'Agencia']
+        # Show filter only if checkbox is selected
+        if tipo_filter:
+            tipo_filtro = st.radio(
+                "Tipo de entidad:",
+                ["Todas", "Sociedades", "Agencias"],
+                horizontal=True,
+                label_visibility="visible"
+            )
+            
+            if tipo_filtro == "Sociedades":
+                filtered_combined = combined[combined['tipo'] == 'Sociedad']
+            elif tipo_filtro == "Agencias":
+                filtered_combined = combined[combined['tipo'] == 'Agencia']
+            else:
+                filtered_combined = combined
+                
+            filtered_entities = sorted(filtered_combined['entidad'].unique())
+            if selected_company not in filtered_entities and len(filtered_entities) > 0:
+                selected_company = filtered_entities[0]
         else:
             filtered_combined = combined
         
-        all_entities = sorted(filtered_combined['entidad'].unique())
-        
-        # Main company
-        selected_company = st.selectbox(
-            "Empresa a analizar:",
-            all_entities,
-            index=0 if len(all_entities) > 0 else None
-        )
-        
-        # Get company type
+        # Get company type and show badge
         if selected_company:
-            company_type = filtered_combined[filtered_combined['entidad'] == selected_company]['tipo'].iloc[0]
+            company_type = combined[combined['entidad'] == selected_company]['tipo'].iloc[0]
+            if company_type == 'Sociedad':
+                st.markdown(f"<span style='background: linear-gradient(135deg, #b794f6 0%, #9f7aea 100%); color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;'>SOCIEDAD DE VALORES</span>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<span style='background: linear-gradient(135deg, #00d4ff 0%, #0091ff 100%); color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;'>AGENCIA DE VALORES</span>", unsafe_allow_html=True)
         else:
             company_type = None
         
-        st.divider()
+        st.markdown("---")
         
-        # Period selector
-        st.markdown("### 📅 Período")
+        # Simplified period selector
+        st.markdown("### 📅 Período de Análisis")
         available_periods = sorted(combined['periodo'].unique())
         
-        period_option = st.radio(
-            "Seleccionar período:",
-            ["📌 Último trimestre", "📊 Todos los trimestres", "🔧 Personalizado"]
+        # Default to last 4 quarters
+        default_periods = available_periods[-4:] if len(available_periods) >= 4 else available_periods
+        
+        period_mode = st.selectbox(
+            "Seleccionar período",
+            ["Último año (4 trim.)", "Último trimestre", "Todo el histórico", "Personalizado"],
+            label_visibility="collapsed"
         )
         
-        if period_option == "📌 Último trimestre":
+        if period_mode == "Último año (4 trim.)":
+            selected_periods = available_periods[-4:] if len(available_periods) >= 4 else available_periods
+        elif period_mode == "Último trimestre":
             selected_periods = [available_periods[-1]] if available_periods else []
-        elif period_option == "📊 Todos los trimestres":
+        elif period_mode == "Todo el histórico":
             selected_periods = available_periods
-        else:
+        else:  # Personalizado
             selected_periods = st.multiselect(
-                "Trimestres:",
+                "Seleccionar trimestres:",
                 available_periods,
-                default=available_periods[-4:] if len(available_periods) >= 4 else available_periods
+                default=default_periods
             )
         
-        st.divider()
+        st.caption(f"📊 {len(selected_periods)} trimestres seleccionados")
         
-        # Comparison
-        st.markdown("### 🔄 Comparación")
-        enable_comparison = st.checkbox("Activar comparación", value=False)
+        st.markdown("---")
         
-        comparison_companies = []
-        if enable_comparison and company_type and selected_company:
-            comparison_entities = list(filtered_combined[
-                (filtered_combined['tipo'] == company_type) & 
-                (filtered_combined['entidad'] != selected_company)
-            ]['entidad'].unique())
+        # Streamlined comparison with expander
+        with st.expander("🔄 **Comparación con Competidores**", expanded=False):
+            comparison_companies = []
             
-            if len(comparison_entities) > 0:
-                comparison_mode = st.radio(
-                    "Modo:",
-                    ["Top 3 similares", "Selección manual"]
-                )
+            if company_type and selected_company:
+                comparison_entities = list(filtered_combined[
+                    (filtered_combined['tipo'] == company_type) & 
+                    (filtered_combined['entidad'] != selected_company)
+                ]['entidad'].unique())
                 
-                if comparison_mode == "Top 3 similares":
-                    # Select 3 most similar by size
+                if len(comparison_entities) > 0:
+                    # Auto-select top 3 similar by default
                     company_size = filtered_combined[
                         filtered_combined['entidad'] == selected_company
                     ]['activos_totales'].mean()
@@ -489,23 +546,38 @@ def main():
                     
                     sizes['diff'] = abs(sizes['activos_totales'] - company_size)
                     top3 = sizes.nsmallest(3, 'diff')['entidad'].tolist()
-                    comparison_companies = top3
+                    
+                    use_auto = st.checkbox("Usar Top 3 similares", value=True)
+                    
+                    if use_auto:
+                        comparison_companies = top3
+                        st.caption(f"Comparando con: {', '.join([c[:20] + '...' if len(c) > 20 else c for c in comparison_companies])}")
+                    else:
+                        comparison_companies = st.multiselect(
+                            "Seleccionar manualmente:",
+                            comparison_entities,
+                            max_selections=5
+                        )
                 else:
-                    comparison_companies = st.multiselect(
-                        "Seleccionar empresas:",
-                        comparison_entities,
-                        max_selections=5
-                    )
+                    st.warning("No hay empresas del mismo tipo para comparar")
+            else:
+                st.info("Selecciona una empresa para activar comparación")
         
-        # Summary
-        st.divider()
-        st.markdown("### 📊 Resumen")
-        st.info(f"""
-        **Empresa:** {selected_company if selected_company else 'No seleccionada'}
-        **Tipo:** {company_type if company_type else '-'}
-        **Períodos:** {len(selected_periods)}
-        **Comparando:** {len(comparison_companies)} empresas
-        """)
+        # Enable comparison flag based on expander state
+        enable_comparison = len(comparison_companies) > 0
+        
+        # Compact summary at bottom
+        if selected_company:
+            st.markdown("---")
+            st.markdown(f"""
+            <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; font-size: 12px;'>
+                <strong>{selected_company[:30]}{'...' if len(selected_company) > 30 else ''}</strong><br>
+                <span style='color: #a0aec0;'>
+                {len(selected_periods)} períodos | 
+                {f'{len(comparison_companies)} competidores' if enable_comparison else 'Sin comparación'}
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
     
     # Filter data
     company_data = combined[
